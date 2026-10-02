@@ -1,4 +1,4 @@
-ZwykPlus 1.2.0 - WoW Forever
+ZwykPlus 1.3.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -12,7 +12,7 @@ INSTALL
 
 SETTINGS
 All features are enabled initially. Updates preserve every existing setting;
-the new item, class and race icon options are enabled when first introduced.
+new options are enabled when first introduced.
 Every checkbox is saved automatically for all characters on this WoW account.
 Changes take effect immediately. WoW writes SavedVariables to disk during
 normal logout, exit or /reload; a crash may lose changes made in that session.
@@ -61,6 +61,22 @@ they use WoW's standard aura tooltip functions.
 The saved checkbox takes effect on the next tooltip display or rebuild.
 To update, replace the ZwykPlus folder and /reload; existing settings survive.
 
+Left-click a buff or debuff to target its caster
+This saved sub-option belongs to "Show buff and debuff sources" and is enabled
+initially. Turning off the parent feature disables click targeting while
+preserving the sub-option's saved choice.
+Left-click a default player buff/debuff icon to target the caster when the
+character is outside combat and WoW supplies an accessible, existing source
+unit. The caster is resolved from the icon's current aura at click time; it
+is not remembered from the previous tooltip or a recycled button.
+Right-click buff cancellation keeps its normal behavior. Weapon enchants,
+edit-mode sample icons, expired auras and unknown/restricted sources are
+skipped. Target/focus/party aura icons and third-party aura displays are not
+integrated with click targeting in this release.
+Targeting is restricted during combat, so clicks made in combat do nothing
+and are never queued for later. A caster that cannot be targeted by the client
+will not change your target. No secure buttons or combat actions are replaced.
+
 Chat item icons
 Displays an item's icon immediately before its link in the default chat
 windows, including loot messages. Item name, quality color, hyperlink payload
@@ -103,7 +119,7 @@ No version-check setting is disabled by ZwykPlus.
 VALIDATION
 The addon uses native WoW widgets and has no addon/library dependencies.
 Saved settings, feature activation/deactivation, error/info event handling,
-camera restoration, tracking selection, buff/debuff source tooltips,
+camera restoration, tracking selection, buff/debuff source tooltips and clicks,
 chat icons, unchanged links/history, asynchronous item loading and
 restricted/unknown information were checked in a mocked Lua runtime.
 It has not yet been tested inside the Forever client.
@@ -111,6 +127,8 @@ It has not yet been tested inside the Forever client.
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_BuffFrame/BuffFrame.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/TargetScriptDocumentation.lua
 
 Chat implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXML/ScrollingMessageFrame.lua

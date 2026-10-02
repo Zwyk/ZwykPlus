@@ -10,6 +10,7 @@ local defaults = {
     herbs = true,
     fish = true,
     auraSource = true,
+    auraSourceTarget = true,
     chatItemIcons = true,
     chatClassIcons = true,
     chatRaceIcons = true,
@@ -37,7 +38,7 @@ function ZP:InitializeDB()
     for key, value in pairs(defaults) do
         if type(ZwykPlusDB[key]) ~= "boolean" then ZwykPlusDB[key] = value end
     end
-    ZwykPlusDB.version = 3
+    ZwykPlusDB.version = 4
     self.db = ZwykPlusDB
 end
 
@@ -161,7 +162,7 @@ function ZP:SetOption(key, value)
         self:ApplyCamera(self.db.zoomOnLogin)
     elseif key == "chatItemIcons" or key == "chatClassIcons" or key == "chatRaceIcons" then
         if self.RefreshChatIcons then self:RefreshChatIcons() end
-    elseif key ~= "auraSource" then
+    elseif key ~= "auraSource" and key ~= "auraSourceTarget" then
         self:ApplyTracking()
     end
     if self.RefreshOptions then self:RefreshOptions() end
@@ -195,6 +196,7 @@ events:SetScript("OnEvent", function(self, event, name)
     elseif event == "PLAYER_LOGIN" then
         ZP:ApplyErrors()
         if ZP.InitializeAuraTooltips then ZP:InitializeAuraTooltips() end
+        if ZP.InitializeAuraSourceTarget then ZP:InitializeAuraSourceTarget() end
         if ZP.InitializeChatIcons then ZP:InitializeChatIcons() end
         if ZP.RegisterSettings then ZP:RegisterSettings() end
         CheckOldAddons()

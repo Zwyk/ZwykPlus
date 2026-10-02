@@ -1,6 +1,7 @@
 local _, ZP = ...
 local L = ZP.L
 local initialized = false
+local targetInitialized = false
 
 local getters = {
     GetUnitAura = {},
@@ -12,7 +13,8 @@ local getters = {
 }
 
 local function Accessible(value)
-    return not issecretvalue or not issecretvalue(value)
+    if issecretvalue and issecretvalue(value) then return false end
+    return not canaccessvalue or canaccessvalue(value)
 end
 
 local function PlainString(value)
@@ -43,6 +45,45 @@ local function AuraSource(unit, index, filter, byInstance)
         local ok, _, _, _, _, _, _, source = pcall(UnitAura, unit, index, filter)
         if ok and PlainString(source) then return source end
     end
+end
+
+local function TargetAuraSource(_, button, mouseButton)
+    if not ZP.db or not ZP.db.auraSource or not ZP.db.auraSourceTarget then return end
+    if not Accessible(mouseButton) or mouseButton ~= "LeftButton" then return end
+    -- A caster can change during combat; do not keep a stale secure target assignment.
+    if not InCombatLockdown or InCombatLockdown() then return end
+    if not Accessible(button) or not button then return end
+    if button.IsForbidden and button:IsForbidden() then return end
+    if not Accessible(button.isExample) or button.isExample then return end
+    local auraType = button.auraType
+    if not PlainString(auraType) or (auraType ~= "Buff" and auraType ~= "Debuff" and auraType ~= "DeadlyDebuff") then return end
+    local info = button.buttonInfo
+    if not Accessible(info) or type(info) ~= "table" then return end
+    local unit = button.unit
+    if not Accessible(unit) then return end
+    if not PlainString(unit) then unit = PlayerFrame and PlayerFrame.unit end
+    local instanceID = button.deadlyInstanceID
+    if not Accessible(instanceID) then return end
+    if instanceID == nil then instanceID = info.auraInstanceID end
+    if not Accessible(instanceID) then return end
+    local filter = auraType == "Buff" and "HELPFUL" or "HARMFUL"
+    local source
+    if instanceID ~= nil then
+        source = AuraSource(unit, instanceID, filter, true)
+    else
+        source = AuraSource(unit, info.index, filter, false)
+    end
+    if not source or not UnitExists or not TargetUnit then return end
+    local ok, exists = pcall(UnitExists, source)
+    if not ok or not Accessible(exists) or not exists then return end
+    -- This runs only in response to the player's actual click; never queue targeting.
+    pcall(TargetUnit, source)
+end
+
+function ZP:InitializeAuraSourceTarget()
+    if targetInitialized or not (EventRegistry and EventRegistry.RegisterCallback) then return end
+    EventRegistry:RegisterCallback("BuffButton.OnClick", TargetAuraSource, self)
+    targetInitialized = true
 end
 
 local function AddSource(tooltip, unit, index, filter, byInstance)
