@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: ZwykPlus
+## Notes: Simple quality-of-life options for WoW Forever.
+## Notes-frFR: Options pratiques pour WoW Forever.
+## Author: Zwyk
+## Version: 1.2.0
+## SavedVariables: ZwykPlusDB
+
+Locale.lua
+Core.lua
+AuraTooltips.lua
+ChatIcons.lua
+Options.lua
