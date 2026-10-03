@@ -3,7 +3,7 @@
 ## Notes: Simple quality-of-life options for WoW Forever.
 ## Notes-frFR: Options pratiques pour WoW Forever.
 ## Author: Zwyk
-## Version: 1.4.1
+## Version: 1.5.0
 ## SavedVariables: ZwykPlusDB
 
 Locale.lua
@@ -12,4 +12,5 @@ AuraTooltips.lua
 AuraTarget.lua
 ChatIcons.lua
 Portraits.lua
+NameColors.lua
 Options.lua

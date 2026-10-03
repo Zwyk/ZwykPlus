@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.4.1"
+ZP.version = "1.5.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -16,6 +16,7 @@ local defaults = {
     chatClassIcons = true,
     chatRaceIcons = true,
     portraits3D = false,
+    frameClassColors = false,
 }
 local trackingSpells = {
     {key = "fish", spellID = 43308},
@@ -40,7 +41,7 @@ function ZP:InitializeDB()
     for key, value in pairs(defaults) do
         if type(ZwykPlusDB[key]) ~= "boolean" then ZwykPlusDB[key] = value end
     end
-    ZwykPlusDB.version = 5
+    ZwykPlusDB.version = 6
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -177,6 +178,8 @@ function ZP:SetOption(key, value)
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
     elseif key == "portraits3D" then
         -- Native portrait mode is applied on reload; the checkbox is saved now.
+    elseif key == "frameClassColors" then
+        if self.RefreshNameColors then self:RefreshNameColors() end
     else
         self:ApplyTracking()
     end
@@ -189,6 +192,7 @@ function ZP:ApplyAll()
     self:ApplyTracking()
     if self.RefreshChatIcons then self:RefreshChatIcons() end
     if self.RefreshPortraits then self:RefreshPortraits(true) end
+    if self.RefreshNameColors then self:RefreshNameColors() end
 end
 
 function ZP:ApplyFromOptions()
@@ -227,6 +231,7 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializeAuraSourceTarget then ZP:InitializeAuraSourceTarget() end
         if ZP.InitializeChatIcons then ZP:InitializeChatIcons() end
         if ZP.InitializePortraits then ZP:InitializePortraits() end
+        if ZP.InitializeNameColors then ZP:InitializeNameColors() end
         if ZP.RegisterSettings then ZP:RegisterSettings() end
         CheckOldAddons()
         self:UnregisterEvent("PLAYER_LOGIN")

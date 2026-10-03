@@ -1,4 +1,4 @@
-ZwykPlus 1.4.1 - WoW Forever
+ZwykPlus 1.5.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -123,11 +123,26 @@ Unit/model events refresh the model. New model frames are created only outside
 combat. Disabling the option and reloading restores the original 2D portrait.
 Native model framing and border
 appearance still need visual validation in the Forever client.
+Version 1.5.0 fits the rectangular 3D viewport inside the native circular rim,
+centered at 68% of the portrait's smaller dimension. PlayerModel cannot use
+the circular mask supported by native 2D textures, so this uses a smaller
+3D head area rather than true circular clipping. No black corner overlays
+or changes to the native portrait texture or border are applied.
+Target/focus changes update only their own models. Unchanged readable unit
+identities keep their idle animation; a newly assigned target starts its
+own idle. Actual unit-model changes still refresh the affected unit.
 For a silent failure, open Frames > Portrait diagnostics or /zp portraits.
 The copyable report shows saved/current mode, pending reload, fallback reason,
 SetUnit result, model readiness, visibility, dimensions/layers and head/idle
 configuration. It does not log GUIDs. Copy with Ctrl+C and include a screenshot
 when reporting a rendering problem.
+
+Class-colored frame names
+Enable this saved option under Frames to color player names on accessible
+native unit frames by class. It starts disabled and applies immediately.
+NPC names retain native colors. Disabling the option restores native colors;
+unknown or restricted class information is not inferred. Name text and
+Forever surnames are unchanged. Third-party replacement frames are not styled.
 
 Chat item icons
 Displays an item's icon immediately before its link in the default chat
@@ -188,6 +203,10 @@ or that native portrait clipping and borders look correct. It also cannot
 prove the client accepts a reload from the addon Apply hardware click.
 The expanded hidden-model lifecycle test fails with the old 1.4.0 module
 and passes with 1.4.1.
+Version 1.5.0 additionally checks viewport corner bounds, unchanged native
+portrait dimensions, isolated target/focus events, cached-unit animation
+retention, public/restricted identity changes, and immediate name colors with
+native color restoration on player/NPC frame reuse and option changes.
 
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua
@@ -201,6 +220,11 @@ https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_Un
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/SimpleModelAPIDocumentation.lua
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/FrameAPICharacterModelBaseDocumentation.lua
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_FrameXML/TalkingHeadUI.lua
+
+Native name-color implementation references (same Forever source pin above):
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_UnitFrame/Mainline/UnitFrame.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_UnitFrame/Mainline/TargetFrame.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_UnitFrame/Shared/CompactUnitFrame.lua
 
 Surname and forbidden target aura evidence (source pin above):
 https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_FrameXMLUtil/Camelot/NameUtil.lua

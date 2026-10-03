@@ -3,6 +3,9 @@ local records = {}
 local failures = {}
 local events
 local Update
+-- PlayerModel has a rectangular viewport, not the Texture-only circular mask API.
+-- Keep its corners inside the native portrait circle, with a small rim inset.
+local viewportFraction = 0.68
 
 local function Accessible(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -18,12 +21,28 @@ local function Enabled()
     return ZP.db and ZP.db.portraits3D
 end
 
+local function FitViewport(record)
+    if InCombatLockdown and InCombatLockdown() then return record.viewportSize ~= nil end
+    local width, height = record.portrait:GetWidth(), record.portrait:GetHeight()
+    if not Accessible(width) or not Accessible(height) or type(width) ~= "number" or
+        type(height) ~= "number" or width <= 0 or height <= 0 then return false end
+    local size = math.min(width, height) * viewportFraction
+    if record.viewportSize ~= size then
+        record.model:ClearAllPoints()
+        record.model:SetPoint("CENTER", record.portrait, "CENTER")
+        record.model:SetSize(size, size)
+        record.viewportSize = size
+    end
+    return true
+end
+
 local function Restore(record, reason)
     record.reason = reason
     record.waiting = false
     record.model:SetScript("OnUpdate", nil)
     record.model:Hide()
-    record.guid, record.unit = nil, nil
+    -- Keep a loaded model's identity across native frame hides (for example clearing a target).
+    -- Actual unit/model changes and failed loads invalidate it separately.
     if record.active then
         record.active = false
         record.portrait:SetShown(record.wasShown)
@@ -60,6 +79,7 @@ Update = function(record, force)
     local frame, model = record.frame, record.model
     if not Enabled() then Restore(record, "disabled"); return end
     if frame.IsShown and not frame:IsShown() then Restore(record, "native frame hidden"); return end
+    if not FitViewport(record) then Restore(record, "native portrait size unavailable"); return end
     local unit = frame.unit
     if not String(unit) then Restore(record, "public unit token unavailable"); return end
     if not UnitIsVisible then Restore(record, "unit visibility API unavailable"); return end
@@ -158,7 +178,6 @@ local function AddFrame(frame, label)
     -- Preserve loaded contents across visibility changes; otherwise a cached unit can point to an empty model.
     if model.SetKeepModelOnHide then model:SetKeepModelOnHide(true) end
     model:Hide()
-    model:SetAllPoints(portrait)
     model:EnableMouse(false)
     -- Stay behind native frame borders and keep unit-frame mouse interactions intact.
     model:SetFrameLevel(parent:GetFrameLevel())
@@ -225,6 +244,7 @@ function ZP:GetPortraitDiagnostics()
                 "; keepOnHide=" .. Value(record.model, "GetKeepModelOnHide")
             lines[#lines + 1] = "  portrait=" .. Value(record.portrait, "GetWidth") .. "x" .. Value(record.portrait, "GetHeight") ..
                 "; model=" .. Value(record.model, "GetWidth") .. "x" .. Value(record.model, "GetHeight") ..
+                "; viewport=inside native ring (68%)" ..
                 "; frameLevel=" .. Value(record.model, "GetFrameLevel") .. "; drawLayer=" .. Value(record.model, "GetModelDrawLayer")
             lines[#lines + 1] = "  headZoom=" .. (record.configured and "1" or "not configured") ..
                 "; idleAnimation=" .. (record.configured and "Stand (0)" or "not configured") .. "; paused=" .. Value(record.model, "GetPaused")
@@ -233,12 +253,30 @@ function ZP:GetPortraitDiagnostics()
     return lines
 end
 
-function ZP:RefreshPortraits(force)
+local function MatchesUnit(record, unit, aliases)
+    if not unit then return true end
+    local frameUnit = record.frame.unit
+    if not String(frameUnit) then return false end
+    if frameUnit == unit then return true end
+    if aliases and UnitIsUnit then
+        local ok, same = pcall(UnitIsUnit, frameUnit, unit)
+        return ok and Accessible(same) and same == true
+    end
+    return false
+end
+
+function ZP:RefreshPortraits(force, unit, identityChanged, aliases)
     if Enabled() then
         -- Creating/layout changes wait until combat ends; existing model content can update.
         if not InCombatLockdown or not InCombatLockdown() then Discover() end
     end
-    for _, record in pairs(records) do Update(record, force) end
+    for _, record in pairs(records) do
+        if MatchesUnit(record, unit, aliases) then
+            -- A changed token with no readable GUID still needs a fresh model; known unchanged
+            -- GUIDs keep their current idle animation, even when the same unit is retargeted.
+            Update(record, force or (identityChanged and not record.guid))
+        end
+    end
 end
 
 function ZP:InitializePortraits()
@@ -249,8 +287,29 @@ function ZP:InitializePortraits()
         "UNIT_FLAGS", "UNIT_PET", "PLAYER_REGEN_ENABLED", "ADDON_LOADED"}) do
         events:RegisterEvent(event)
     end
-    events:SetScript("OnEvent", function(_, event)
-        ZP:RefreshPortraits(event ~= "ADDON_LOADED" and event ~= "PLAYER_REGEN_ENABLED" and event ~= "UNIT_FLAGS")
+    events:SetScript("OnEvent", function(_, event, unit)
+        if event == "PLAYER_TARGET_CHANGED" then
+            ZP:RefreshPortraits(false, "target", true)
+        elseif event == "PLAYER_FOCUS_CHANGED" then
+            ZP:RefreshPortraits(false, "focus", true)
+        elseif event == "UNIT_MODEL_CHANGED" then
+            if String(unit) then ZP:RefreshPortraits(true, unit, false, true) end
+        elseif event == "UNIT_PORTRAIT_UPDATE" then
+            -- A native 2D repaint is not a reason to restart an unchanged 3D animation.
+            if String(unit) then ZP:RefreshPortraits(false, unit) end
+        elseif event == "UNIT_CONNECTION" or event == "UNIT_FLAGS" then
+            if String(unit) then ZP:RefreshPortraits(false, unit, false, true) end
+        elseif event == "UNIT_PET" then
+            if String(unit) and unit == "player" then ZP:RefreshPortraits(false, "pet", true) end
+        elseif event == "GROUP_ROSTER_UPDATE" then
+            ZP:RefreshPortraits(false)
+            for _, record in pairs(records) do
+                local token = record.frame.unit
+                if String(token) and token:match("^party%d") and not record.guid then Update(record, true) end
+            end
+        else
+            ZP:RefreshPortraits(event == "PLAYER_ENTERING_WORLD")
+        end
     end)
     if hooksecurefunc and UnitFramePortrait_Update then
         hooksecurefunc("UnitFramePortrait_Update", function(frame)
