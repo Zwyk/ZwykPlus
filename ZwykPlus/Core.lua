@@ -1,5 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
+ZP.version = "1.4.1"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -41,6 +42,15 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.version = 5
     self.db = ZwykPlusDB
+    if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
+end
+
+function ZP:Are3DPortraitsEnabled()
+    return self.portraits3DActive == true
+end
+
+function ZP:NeedsReload()
+    return self.db and self.db.portraits3D ~= self.portraits3DActive
 end
 
 function ZP:ApplyErrors()
@@ -166,7 +176,7 @@ function ZP:SetOption(key, value)
     elseif key == "auraSource" or key == "auraSourceTarget" then
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
     elseif key == "portraits3D" then
-        if self.RefreshPortraits then self:RefreshPortraits(true) end
+        -- Native portrait mode is applied on reload; the checkbox is saved now.
     else
         self:ApplyTracking()
     end
@@ -179,6 +189,18 @@ function ZP:ApplyAll()
     self:ApplyTracking()
     if self.RefreshChatIcons then self:RefreshChatIcons() end
     if self.RefreshPortraits then self:RefreshPortraits(true) end
+end
+
+function ZP:ApplyFromOptions()
+    self:ApplyAll()
+    if not self:NeedsReload() then return end
+    if InCombatLockdown and InCombatLockdown() then
+        print("|cffffcc66ZwykPlus:|r " .. L.reloadCombat)
+        return
+    end
+    -- Only called synchronously by the Apply button's hardware click.
+    local reload = (C_UI and C_UI.Reload) or ReloadUI
+    if reload then reload() else self:WarnOnce("reloadUnavailable", L.reloadUnavailable) end
 end
 
 local function CheckOldAddons()
@@ -220,4 +242,11 @@ end)
 
 SLASH_ZWYKPLUS1 = "/zwykplus"
 SLASH_ZWYKPLUS2 = "/zp"
-SlashCmdList.ZWYKPLUS = function() ZP:ToggleOptions() end
+SlashCmdList.ZWYKPLUS = function(message)
+    local command = type(message) == "string" and message:lower():match("^%s*(.-)%s*$") or ""
+    if command == "portraits" or command == "debug portraits" then
+        if ZP.ShowPortraitDiagnostics then ZP:ShowPortraitDiagnostics() end
+    else
+        ZP:ToggleOptions()
+    end
+end

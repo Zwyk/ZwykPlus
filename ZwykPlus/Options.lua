@@ -4,6 +4,8 @@ local controls = {}
 local window
 local pages, tabs = {}, {}
 local pageHeading
+local reloadNote
+local diagnosticsWindow, diagnosticsText, diagnosticsMeasure
 local pageOrder = {"interface", "automation", "auras", "frames", "chat"}
 local pageNames = {
     interface = L.categoryInterface, automation = L.categoryAutomation,
@@ -96,6 +98,12 @@ local function BuildPages()
     Label(page, L.portraitsGroup, 0, 0, 370, "GameFontNormal")
     Checkbox(page, "portraits3D", L.portraits3D, 0, -23, 355, nil, L.portraits3DHelp)
     Label(page, L.portraits3DHelp, 28, -64, 365)
+    local debug = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    debug:SetPoint("TOPLEFT", 28, -157)
+    debug:SetSize(205, 24)
+    debug:SetText(L.portraitDiagnostics)
+    debug:SetScript("OnClick", function() ZP:ShowPortraitDiagnostics() end)
+    Label(page, L.portraitDiagnosticsHelp, 28, -192, 365)
 
     page = pages.chat
     Label(page, L.chatGroup, 0, 0, 370, "GameFontNormal")
@@ -113,6 +121,11 @@ function ZP:RefreshOptions()
         button:SetEnabled(enabled)
         button:SetAlpha(enabled and 1 or 0.45)
         button.label:SetAlpha(enabled and 1 or 0.45)
+    end
+    if reloadNote then
+        local combat = InCombatLockdown and InCombatLockdown()
+        reloadNote:SetText(combat and L.reloadCombatNote or L.reloadRequired)
+        reloadNote:SetShown(self:NeedsReload())
     end
 end
 
@@ -139,7 +152,7 @@ local function BuildOptions()
     UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusOptions"
 
     Label(window, "|cffffcc66ZwykPlus|r", 24, -20, 148, "GameFontNormalLarge")
-    Label(window, "1.4.0", 24, -46, 130)
+    Label(window, ZP.version, 24, -46, 130)
     pageHeading = Label(window, "", 178, -20, 370, "GameFontNormalLarge")
     Label(window, L.subtitle, 178, -48, 390)
     local closeIcon = CreateFrame("Button", nil, window, "UIPanelCloseButton")
@@ -154,13 +167,81 @@ local function BuildOptions()
     apply:SetSize(205, 24)
     apply:SetPoint("BOTTOMLEFT", 24, 15)
     apply:SetText(L.apply)
-    apply:SetScript("OnClick", function() ZP:ApplyAll() end)
+    apply:SetScript("OnClick", function() ZP:ApplyFromOptions() end)
+    reloadNote = Label(window, "", 238, -354, 240)
+    reloadNote:SetTextColor(1, 0.65, 0.15)
     local close = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
     close:SetSize(90, 24)
     close:SetPoint("BOTTOMRIGHT", -24, 15)
     close:SetText(L.close)
     close:SetScript("OnClick", function() window:Hide() end)
     window:SetScript("OnShow", function() ZP:RefreshOptions() end)
+    window:RegisterEvent("PLAYER_REGEN_DISABLED")
+    window:RegisterEvent("PLAYER_REGEN_ENABLED")
+    window:SetScript("OnEvent", function() ZP:RefreshOptions() end)
+end
+
+local function RefreshPortraitReport()
+    local lines = ZP.GetPortraitDiagnostics and ZP:GetPortraitDiagnostics() or {L.portraitReportMissing}
+    table.insert(lines, 1, "ZwykPlus " .. ZP.version .. " - " .. L.portraitDiagnostics)
+    local text = table.concat(lines, "\n")
+    diagnosticsMeasure:SetText(text)
+    diagnosticsText:SetHeight(math.max(270, diagnosticsMeasure:GetStringHeight() + 24))
+    diagnosticsText:SetText(text)
+    diagnosticsText:HighlightText()
+end
+
+function ZP:ShowPortraitDiagnostics()
+    if not diagnosticsWindow then
+        local report = CreateFrame("Frame", "ZwykPlusPortraitDiagnostics", UIParent, "BackdropTemplate")
+        report:SetSize(620, 420)
+        report:SetPoint("CENTER")
+        report:SetFrameStrata("DIALOG")
+        report:SetClampedToScreen(true)
+        report:EnableMouse(true)
+        report:SetMovable(true)
+        report:RegisterForDrag("LeftButton")
+        report:SetScript("OnDragStart", report.StartMoving)
+        report:SetScript("OnDragStop", report.StopMovingOrSizing)
+        report:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
+        report:SetBackdropColor(0.045, 0.04, 0.025, 1)
+        Label(report, L.portraitReportTitle, 24, -20, 545, "GameFontNormalLarge")
+        Label(report, L.portraitReportHelp, 24, -50, 565)
+        local closeIcon = CreateFrame("Button", nil, report, "UIPanelCloseButton")
+        closeIcon:SetPoint("TOPRIGHT", -6, -6)
+        closeIcon:SetScript("OnClick", function() report:Hide() end)
+        local scroll = CreateFrame("ScrollFrame", nil, report, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 24, -95)
+        scroll:SetSize(542, 270)
+        diagnosticsText = CreateFrame("EditBox", nil, scroll)
+        diagnosticsText:SetMultiLine(true)
+        diagnosticsText:SetAutoFocus(false)
+        diagnosticsText:SetFontObject(ChatFontNormal)
+        diagnosticsText:SetWidth(542)
+        diagnosticsMeasure = report:CreateFontString(nil, "OVERLAY", "ChatFontNormal")
+        diagnosticsMeasure:SetWidth(542)
+        diagnosticsMeasure:Hide()
+        diagnosticsText:SetScript("OnMouseUp", function(self) self:HighlightText() end)
+        diagnosticsText:SetScript("OnEscapePressed", function() report:Hide() end)
+        scroll:SetScrollChild(diagnosticsText)
+        local refresh = CreateFrame("Button", nil, report, "UIPanelButtonTemplate")
+        refresh:SetPoint("BOTTOMLEFT", 24, 15)
+        refresh:SetSize(150, 24)
+        refresh:SetText(L.refresh)
+        refresh:SetScript("OnClick", RefreshPortraitReport)
+        local close = CreateFrame("Button", nil, report, "UIPanelButtonTemplate")
+        close:SetPoint("BOTTOMRIGHT", -24, 15)
+        close:SetSize(90, 24)
+        close:SetText(L.close)
+        close:SetScript("OnClick", function() report:Hide() end)
+        UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusPortraitDiagnostics"
+        diagnosticsWindow = report
+    end
+    RefreshPortraitReport()
+    diagnosticsWindow:Show()
+    diagnosticsText:SetFocus()
+    diagnosticsText:HighlightText()
 end
 
 function ZP:ToggleOptions()

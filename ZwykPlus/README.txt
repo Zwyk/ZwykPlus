@@ -1,4 +1,4 @@
-ZwykPlus 1.4.0 - WoW Forever
+ZwykPlus 1.4.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -16,7 +16,13 @@ categories. It remembers the last selected category.
 Features are enabled initially except 3D portraits, which are opt-in under
 Frames. Updates preserve every existing setting.
 Every checkbox is saved automatically for all characters on this WoW account.
-Changes take effect immediately. WoW writes SavedVariables to disk during
+Most changes take effect immediately. Portrait mode applies on a UI reload;
+the warning beside Apply appears only when the saved mode differs from the
+current session. Apply reapplies live features and reloads for that pending
+portrait change. During combat it asks for another click outside combat;
+it never queues an automatic reload. Reverting to the current mode clears
+the warning. Model loading failures do not trigger reloads.
+WoW writes SavedVariables to disk during
 normal logout, exit or /reload; a crash may lose changes made in that session.
 The settings are kept in ZwykPlusDB through the TOC SavedVariables entry.
 
@@ -53,8 +59,9 @@ The addon does not continuously enforce tracking or reapply it when zoning.
 Show buff and debuff sources
 Adds a "Source: Name" line to buff and debuff tooltips if WoW supplies an
 accessible caster unit and name. Supports both beneficial and harmful auras
-on the default UI, including tooltips on unit frames. Realm names are included
-when available. This identifies the caster; it does not infer item, talent,
+on addon-accessible default tooltips, including public unit-frame aura setters.
+Native name formatting preserves Forever's two-part surname with a space.
+This identifies the caster; it does not infer item, talent,
 proc or environmental origins when WoW supplies no caster.
 Player caster names use their class color when that information is accessible.
 NPCs and unavailable class colors use the neutral source color.
@@ -62,6 +69,13 @@ Unknown, out-of-range/unresolvable and restricted caster information is
 omitted. Combat aura restrictions are respected; this feature cannot reveal
 information the client does not expose. Third-party aura displays work when
 they use WoW's standard aura tooltip functions.
+Version 1.4.1 hooks public setters even when TooltipDataProcessor is available,
+covering target, focus, party, raid and pet tooltips built through those APIs.
+LIMITATION: Forever's native target aura display uses a private forbidden
+AuraButtonTooltip. Its aura button API also keeps source metadata private
+and prohibits focus queries. ZwykPlus cannot safely add a line to that tooltip
+or infer its current caster from the icon. These forbidden native target
+tooltips remain unsupported; no protection or secret-data checks are bypassed.
 The saved checkbox takes effect on the next tooltip display or rebuild.
 To update, replace the ZwykPlus folder and /reload; existing settings survive.
 
@@ -94,14 +108,26 @@ Actual secure hardware clicks still require an in-game check on Forever.
 Native 3D portraits
 Enable "3D portraits" in Frames for animated native player, target, focus,
 pet and portrait-style party portraits. This option starts disabled.
+Click Apply to reload after changing the option. The 3D model replaces the
+visible 2D portrait in the same location, uses head zoom 1 and loops the
+Stand/idle animation (0), unpaused.
 Uses native PlayerModel frames without intercepting unit-frame mouse actions.
 Models stay behind native borders. No ZPerl code, assets or dependencies are
 bundled. Compact party/raid layouts without portrait textures are unaffected.
 Unavailable, invisible, dead or restricted units retain their 2D portrait.
-Asynchronous model loads show 3D once ready. Unit/GUID changes refresh the
-model. New model frames are created only outside combat. Disabling the option
-restores each original portrait's visibility. Native model framing and border
+Version 1.4.1 shows the model transparently before SetUnit so a hidden frame
+does not postpone loading. It keeps model data across hides and polls loading
+for up to five seconds, retaining 2D until ready. Apply retries a failed load
+without a reload when portrait mode is unchanged. Readable GUIDs are optional.
+Unit/model events refresh the model. New model frames are created only outside
+combat. Disabling the option and reloading restores the original 2D portrait.
+Native model framing and border
 appearance still need visual validation in the Forever client.
+For a silent failure, open Frames > Portrait diagnostics or /zp portraits.
+The copyable report shows saved/current mode, pending reload, fallback reason,
+SetUnit result, model readiness, visibility, dimensions/layers and head/idle
+configuration. It does not log GUIDs. Copy with Ctrl+C and include a screenshot
+when reporting a rendering problem.
 
 Chat item icons
 Displays an item's icon immediately before its link in the default chat
@@ -127,7 +153,8 @@ chat windows (such as WIM) are not integrated in this release.
 These features are implemented in ZwykPlus itself, without requiring or
 bundling ChatLinkIcons. Other link types from that addon are not included.
 
-"Apply enabled features" reapplies the selected options when requested.
+"Apply enabled features" reapplies live options and reloads when portrait mode
+has changed. The warning beside the button indicates that it will reload.
 
 INTERFACE VERSION
 The TOC targets Interface 16001, matching the published Forever 1.60.1 UI
@@ -135,6 +162,8 @@ source (build 70170, exported October 1, 2026), rather than the earlier addons'
 11507 Classic placeholder. Source:
 https://github.com/Gethe/wow-ui-source/blob/forever/version.txt
 Source commit: 9a789c074b8e73c5d604ef2d6af3bb5b3aefb348
+The 1.4.1 fixes also checked source e3ecc27b64d30fdc735a3f6579b866858f9f9df1,
+Forever 1.60.1 build 70205. Interface remains 16001.
 
 If your particular beta build uses a different interface number, check it with:
 /dump select(4, GetBuildInfo())
@@ -147,13 +176,18 @@ The addon uses native WoW widgets and has no addon/library dependencies.
 Saved settings, feature activation/deactivation, error/info event handling,
 camera restoration, tracking selection, buff/debuff source tooltips and class
 colors, secure click attributes/current aura resolution/combat transitions,
-native portrait model loading/2D fallback, chat icons, unchanged links/history,
+native portrait hidden/asynchronous loading/2D fallback, idle/head setup,
+portrait reload decisions, copy report UI, public aura setter coverage and
+surname formatting, chat icons, unchanged links/history,
 asynchronous item loading and restricted/unknown information were checked in
 a mocked Lua runtime. Widget positions for all five categories were rendered
 and inspected in English and French.
 This version has not yet been tested inside the Forever client; a mocked
 runtime cannot establish that the client's secure hardware click path works
-or that native portrait clipping and borders look correct.
+or that native portrait clipping and borders look correct. It also cannot
+prove the client accepts a reload from the addon Apply hardware click.
+The expanded hidden-model lifecycle test fails with the old 1.4.0 module
+and passes with 1.4.1.
 
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua
@@ -165,6 +199,15 @@ https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_AP
 Portrait implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_UnitFrame/Shared/UnitFrame.lua
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/SimpleModelAPIDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/FrameAPICharacterModelBaseDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_FrameXML/TalkingHeadUI.lua
+
+Surname and forbidden target aura evidence (source pin above):
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_FrameXMLUtil/Camelot/NameUtil.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_AuraContainer/Classic/Blizzard_AuraButtonTooltip.xml
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_AuraContainer/Blizzard_AuraButton.xml
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_UnitFrame/Shared/TargetFrameAuraButton.xml
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_UnitFrame/Shared/TargetFrameAuraShared.lua
 
 Chat implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXML/ScrollingMessageFrame.lua

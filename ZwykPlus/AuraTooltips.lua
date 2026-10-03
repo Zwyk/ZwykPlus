@@ -1,6 +1,7 @@
 local _, ZP = ...
 local L = ZP.L
 local initialized = false
+local hookedTooltips = setmetatable({}, {__mode = "k"})
 
 local getters = {
     GetUnitAura = {},
@@ -18,6 +19,15 @@ end
 
 local function PlainString(value)
     return Accessible(value) and type(value) == "string" and value ~= ""
+end
+
+local function ForbiddenTooltip(tooltip)
+    if not Accessible(tooltip) or not tooltip then return true end
+    local check = tooltip.IsForbidden
+    if not Accessible(check) then return true end
+    if not check then return false end
+    local ok, forbidden = pcall(check, tooltip)
+    return not ok or not Accessible(forbidden) or forbidden
 end
 
 function ZP:GetAuraSourceUnit(unit, index, filter, byInstance)
@@ -70,16 +80,35 @@ local function SourceColor(source)
     return 1, 0.82, 0
 end
 
+local function SourceName(source)
+    if not UnitName then return end
+    local ok, name, second = pcall(UnitName, source)
+    if not ok or not PlainString(name) or not Accessible(second) then return end
+    -- Forever's Camelot formatter treats the second return as a surname.
+    -- Other clients keep their native realm-name formatting through this helper.
+    if NameUtil and NameUtil.FormatUnitNameForDisplay then
+        local formattedOK, formatted = pcall(NameUtil.FormatUnitNameForDisplay, source, true)
+        if formattedOK and PlainString(formatted) then return formatted end
+    end
+    if PlainString(second) then
+        local separators = Constants and Constants.CharacterNameSeparatorConsts
+        local separator = separators and separators.CHARACTERNAME_SURNAME_SEPARATOR
+        name = name .. (PlainString(separator) and separator or " ") .. second
+    end
+    return name
+end
+
 local function AddSource(tooltip, unit, index, filter, byInstance)
     if not ZP.db or not ZP.db.auraSource then return end
-    if tooltip.IsForbidden and tooltip:IsForbidden() then return end
+    if ForbiddenTooltip(tooltip) then return end
+    if tooltip.zwykPlusSourceAdded then return end
     local source = ZP:GetAuraSourceUnit(unit, index, filter, byInstance)
     if not source then return end
-    local ok, name, realm = pcall(UnitName, source)
-    if not ok or not PlainString(name) then return end
-    if PlainString(realm) then name = name .. "-" .. realm end
+    local name = SourceName(source)
+    if not name then return end
     local r, g, b = SourceColor(source)
     tooltip:AddDoubleLine(L.source, name, 0.65, 0.65, 0.65, r, g, b)
+    tooltip.zwykPlusSourceAdded = true
     if ZP.PrepareAuraTarget and tooltip.GetOwner then ZP:PrepareAuraTarget(tooltip:GetOwner()) end
     return true
 end
@@ -90,17 +119,45 @@ local function WithFilter(required, filter)
     return required or filter
 end
 
+local function HookTooltip(tooltip)
+    if ForbiddenTooltip(tooltip) or hookedTooltips[tooltip] then return end
+    if not tooltip.HookScript then return end
+    hookedTooltips[tooltip] = true
+    tooltip:HookScript("OnTooltipCleared", function(self)
+        self.zwykPlusSourceAdded = nil
+    end)
+    if not hooksecurefunc then return end
+    -- Public unit-frame and addon tooltips may use setters without processor metadata.
+    for getter, spec in pairs(getters) do
+        local method = "Set" .. getter:sub(4)
+        if type(tooltip[method]) == "function" then
+            hooksecurefunc(tooltip, method, function(self, unit, index, filter)
+                if not Accessible(filter) then return end
+                if AddSource(self, unit, index, WithFilter(spec.filter, filter), spec.instance) then
+                    self:Show()
+                end
+            end)
+        end
+    end
+end
+
 function ZP:InitializeAuraTooltips()
     if initialized then return end
     initialized = true
+    HookTooltip(GameTooltip)
     if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall
         and Enum and Enum.TooltipDataType and Enum.TooltipDataType.UnitAura then
         -- This also runs when Blizzard rebuilds a tooltip after an aura update.
         TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.UnitAura, function(tooltip)
             if not ZP.db or not ZP.db.auraSource then return end
+            -- Target auras can use Blizzard's forbidden AuraButtonTooltip. Never
+            -- read its processing fields, hook it, or call its tooltip setters.
+            if ForbiddenTooltip(tooltip) then return end
+            HookTooltip(tooltip)
             local getInfo = tooltip.GetProcessingTooltipInfo or tooltip.GetPrimaryTooltipInfo
             if not getInfo then return end
-            local info = getInfo(tooltip)
+            local ok, info = pcall(getInfo, tooltip)
+            if not ok then return end
             if not Accessible(info) or type(info) ~= "table" then return end
             local getter = info.getterName
             if not PlainString(getter) then return end
@@ -110,22 +167,5 @@ function ZP:InitializeAuraTooltips()
             if not Accessible(args[3]) then return end
             AddSource(tooltip, args[1], args[2], WithFilter(spec.filter, args[3]), spec.instance)
         end)
-    elseif GameTooltip and hooksecurefunc then
-        -- Fallback for clients using the older tooltip setters.
-        GameTooltip:HookScript("OnTooltipCleared", function(tooltip)
-            tooltip.zwykPlusSourceAdded = nil
-        end)
-        for getter, spec in pairs(getters) do
-            local method = "Set" .. getter:sub(4)
-            if type(GameTooltip[method]) == "function" then
-                hooksecurefunc(GameTooltip, method, function(tooltip, unit, index, filter)
-                    if tooltip.zwykPlusSourceAdded or not Accessible(filter) then return end
-                    if AddSource(tooltip, unit, index, WithFilter(spec.filter, filter), spec.instance) then
-                        tooltip.zwykPlusSourceAdded = true
-                        tooltip:Show()
-                    end
-                end)
-            end
-        end
     end
 end
