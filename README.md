@@ -36,8 +36,8 @@ If portraits still stay in 2D, open `/zp portraits`, copy the report with Ctrl+C
 
 ## Install or update
 
-1. Download this repository using **Code → Download ZIP**.
-2. Extract it and copy the inner `ZwykPlus` folder into your Forever client's `Interface/AddOns` directory.
+1. Clone this repository, or download it using **Code → Download ZIP**.
+2. Copy the repository folder into your Forever client's `Interface/AddOns` directory, naming the folder `ZwykPlus`. If you downloaded the ZIP, extract it and rename `ZwykPlus-main` to `ZwykPlus` before copying.
 3. Confirm that `Interface/AddOns/ZwykPlus/ZwykPlus.toc` exists.
 4. Enable ZwykPlus and restart WoW or run `/reload`.
 5. Open the setup with `/zp` or `/zwykplus`, or through **Settings → AddOns → ZwykPlus**.
@@ -52,4 +52,4 @@ The addon targets Forever Interface 16001 and has no addon or library dependenci
 
 Feature behavior, saved settings, class colors, secure click attributes/state transitions, hidden/asynchronous model loading, idle animation, 2D fallback, reload decisions, public aura setter coverage, surname formatting, links/history, asynchronous item loading and restricted information were checked in a mocked Lua runtime. English/French panel layouts were checked with rendered widget positions. The strengthened portrait test fails against 1.4.0 and passes against 1.4.1. Actual secure hardware clicks, reload permission and portrait rendering still need validation inside Forever.
 
-See [the detailed README](ZwykPlus/README.txt) for behavior, limitations and API source references.
+See [the detailed README](README.txt) for behavior, limitations and API source references.
