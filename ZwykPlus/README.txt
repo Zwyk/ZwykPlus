@@ -1,4 +1,4 @@
-ZwykPlus 1.3.0 - WoW Forever
+ZwykPlus 1.4.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -11,8 +11,10 @@ INSTALL
    You can also open it through Settings > AddOns > ZwykPlus.
 
 SETTINGS
-All features are enabled initially. Updates preserve every existing setting;
-new options are enabled when first introduced.
+The compact, opaque setup has Interface, Automation, Auras, Frames and Chat
+categories. It remembers the last selected category.
+Features are enabled initially except 3D portraits, which are opt-in under
+Frames. Updates preserve every existing setting.
 Every checkbox is saved automatically for all characters on this WoW account.
 Changes take effect immediately. WoW writes SavedVariables to disk during
 normal logout, exit or /reload; a crash may lose changes made in that session.
@@ -54,6 +56,8 @@ accessible caster unit and name. Supports both beneficial and harmful auras
 on the default UI, including tooltips on unit frames. Realm names are included
 when available. This identifies the caster; it does not infer item, talent,
 proc or environmental origins when WoW supplies no caster.
+Player caster names use their class color when that information is accessible.
+NPCs and unavailable class colors use the neutral source color.
 Unknown, out-of-range/unresolvable and restricted caster information is
 omitted. Combat aura restrictions are respected; this feature cannot reveal
 information the client does not expose. Third-party aura displays work when
@@ -73,9 +77,31 @@ Right-click buff cancellation keeps its normal behavior. Weapon enchants,
 edit-mode sample icons, expired auras and unknown/restricted sources are
 skipped. Target/focus/party aura icons and third-party aura displays are not
 integrated with click targeting in this release.
-Targeting is restricted during combat, so clicks made in combat do nothing
-and are never queued for later. A caster that cannot be targeted by the client
-will not change your target. No secure buttons or combat actions are replaced.
+Version 1.4.0 replaces the direct TargetUnit call that caused the reported
+ADDON_ACTION_FORBIDDEN error. A transparent SecureActionButtonTemplate handles
+the hardware click through Blizzard's secure OnClick. Addon code prepares
+its target attributes outside combat and rechecks the current aura in PreClick.
+The overlay passes hover motion and right-clicks to the native aura button.
+Its position uses numerical UIParent coordinates, avoiding a protected anchor
+dependency on moving aura buttons. A secure combat state driver hides the
+overlay and clears its target action as combat begins. There is no addon
+TargetUnit call, and Blizzard's aura button OnClick remains unchanged.
+Clicks made in combat do nothing and are never queued for later. A caster that
+cannot be targeted by the client will not change your target. Clients missing
+the required secure/mouse pass-through APIs leave click targeting inactive.
+Actual secure hardware clicks still require an in-game check on Forever.
+
+Native 3D portraits
+Enable "3D portraits" in Frames for animated native player, target, focus,
+pet and portrait-style party portraits. This option starts disabled.
+Uses native PlayerModel frames without intercepting unit-frame mouse actions.
+Models stay behind native borders. No ZPerl code, assets or dependencies are
+bundled. Compact party/raid layouts without portrait textures are unaffected.
+Unavailable, invisible, dead or restricted units retain their 2D portrait.
+Asynchronous model loads show 3D once ready. Unit/GUID changes refresh the
+model. New model frames are created only outside combat. Disabling the option
+restores each original portrait's visibility. Native model framing and border
+appearance still need visual validation in the Forever client.
 
 Chat item icons
 Displays an item's icon immediately before its link in the default chat
@@ -119,16 +145,26 @@ No version-check setting is disabled by ZwykPlus.
 VALIDATION
 The addon uses native WoW widgets and has no addon/library dependencies.
 Saved settings, feature activation/deactivation, error/info event handling,
-camera restoration, tracking selection, buff/debuff source tooltips and clicks,
-chat icons, unchanged links/history, asynchronous item loading and
-restricted/unknown information were checked in a mocked Lua runtime.
-It has not yet been tested inside the Forever client.
+camera restoration, tracking selection, buff/debuff source tooltips and class
+colors, secure click attributes/current aura resolution/combat transitions,
+native portrait model loading/2D fallback, chat icons, unchanged links/history,
+asynchronous item loading and restricted/unknown information were checked in
+a mocked Lua runtime. Widget positions for all five categories were rendered
+and inspected in English and French.
+This version has not yet been tested inside the Forever client; a mocked
+runtime cannot establish that the client's secure hardware click path works
+or that native portrait clipping and borders look correct.
 
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_BuffFrame/BuffFrame.lua
-https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/TargetScriptDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_FrameXML/SecureTemplates.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/SimpleScriptRegionAPIDocumentation.lua
+
+Portrait implementation references (Forever UI source):
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_UnitFrame/Shared/UnitFrame.lua
+https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_APIDocumentationGenerated/SimpleModelAPIDocumentation.lua
 
 Chat implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXML/ScrollingMessageFrame.lua

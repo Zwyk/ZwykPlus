@@ -2,6 +2,13 @@ local _, ZP = ...
 local L = ZP.L
 local controls = {}
 local window
+local pages, tabs = {}, {}
+local pageHeading
+local pageOrder = {"interface", "automation", "auras", "frames", "chat"}
+local pageNames = {
+    interface = L.categoryInterface, automation = L.categoryAutomation,
+    auras = L.categoryAuras, frames = L.categoryFrames, chat = L.categoryChat,
+}
 
 local function Label(parent, text, x, y, width, font)
     local label = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
@@ -12,18 +19,90 @@ local function Label(parent, text, x, y, width, font)
     return label
 end
 
-local function Checkbox(parent, key, text, x, y, width, dependency)
+local function Checkbox(parent, key, text, x, y, width, dependency, help)
     local button = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
     button:SetPoint("TOPLEFT", x, y)
-    button:SetSize(28, 28)
+    button:SetSize(24, 24)
     button.key = key
     button.dependency = dependency
-    button.label = Label(parent, text, x + 32, y - 6, width, "GameFontHighlight")
+    button.label = Label(parent, text, x + 28, y - 5, width, "GameFontHighlight")
     button:SetScript("OnClick", function(self)
         ZP:SetOption(self.key, self:GetChecked())
     end)
+    if help then
+        button:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(text, 1, 0.82, 0)
+            GameTooltip:AddLine(help, 0.85, 0.85, 0.85, true)
+            GameTooltip:Show()
+        end)
+        button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
     controls[#controls + 1] = button
     return button
+end
+
+local function SelectPage(key)
+    if not pages[key] then key = "interface" end
+    for pageKey, page in pairs(pages) do
+        page:SetShown(pageKey == key)
+        tabs[pageKey].highlight:SetShown(pageKey == key)
+    end
+    pageHeading:SetText(pageNames[key])
+    ZP.db.optionsPage = key
+end
+
+local function BuildPages()
+    for index, key in ipairs(pageOrder) do
+        local page = CreateFrame("Frame", nil, window)
+        page:SetPoint("TOPLEFT", 178, -85)
+        page:SetSize(398, 230)
+        pages[key] = page
+        local tab = CreateFrame("Button", nil, window)
+        tab.pageKey = key
+        tab:SetPoint("TOPLEFT", 18, -85 - (index - 1) * 31)
+        tab:SetSize(138, 27)
+        tab.highlight = tab:CreateTexture(nil, "BACKGROUND")
+        tab.highlight:SetAllPoints()
+        tab.highlight:SetColorTexture(0.45, 0.37, 0.02, 0.6)
+        Label(tab, pageNames[key], 9, -7, 122, "GameFontNormal")
+        tab:SetScript("OnClick", function(self) SelectPage(self.pageKey) end)
+        tabs[key] = tab
+    end
+    local page = pages.interface
+    Label(page, L.messagesGroup, 0, 0, 370, "GameFontNormal")
+    Checkbox(page, "hideErrors", L.compactErrors, 0, -23, 355, nil, L.errorsHelp)
+    Label(page, L.cameraGroup, 0, -80, 370, "GameFontNormal")
+    Checkbox(page, "maxZoom", L.compactCamera, 0, -103, 355, nil, L.cameraHelp)
+    Checkbox(page, "zoomOnLogin", L.compactZoom, 23, -133, 332, "maxZoom", L.zoom)
+
+    page = pages.automation
+    Label(page, L.trackingGroup, 0, 0, 370, "GameFontNormal")
+    Checkbox(page, "autoTracking", L.tracking, 0, -23, 355, nil, L.trackingHelp)
+    Checkbox(page, "minerals", L.minerals, 23, -65, 157, "autoTracking", L.trackingHelp)
+    Checkbox(page, "herbs", L.herbs, 209, -65, 157, "autoTracking", L.trackingHelp)
+    Checkbox(page, "fish", L.fish, 23, -96, 330, "autoTracking", L.trackingHelp)
+    Label(page, L.trackingNote, 23, -142, 369)
+
+    page = pages.auras
+    Label(page, L.tooltipGroup, 0, 0, 370, "GameFontNormal")
+    Checkbox(page, "auraSource", L.compactAuras, 0, -23, 355, nil, L.auraSourceHelp)
+    Label(page, L.auraColorHelp, 28, -56, 365)
+    Label(page, L.clickGroup, 0, -101, 370, "GameFontNormal")
+    Checkbox(page, "auraSourceTarget", L.compactAuraClick, 0, -124, 355, "auraSource", L.auraSourceTargetHelp)
+    Label(page, L.auraClickNote, 28, -164, 365)
+
+    page = pages.frames
+    Label(page, L.portraitsGroup, 0, 0, 370, "GameFontNormal")
+    Checkbox(page, "portraits3D", L.portraits3D, 0, -23, 355, nil, L.portraits3DHelp)
+    Label(page, L.portraits3DHelp, 28, -64, 365)
+
+    page = pages.chat
+    Label(page, L.chatGroup, 0, 0, 370, "GameFontNormal")
+    Checkbox(page, "chatItemIcons", L.compactItems, 0, -23, 355, nil, L.chatItemIcons)
+    Checkbox(page, "chatClassIcons", L.compactClasses, 0, -54, 355, nil, L.chatClassIcons)
+    Checkbox(page, "chatRaceIcons", L.compactRaces, 0, -85, 355, nil, L.chatRaceIcons)
+    Label(page, L.chatIconsHelp, 28, -132, 365)
 end
 
 function ZP:RefreshOptions()
@@ -39,7 +118,7 @@ end
 
 local function BuildOptions()
     window = CreateFrame("Frame", "ZwykPlusOptions", UIParent, "BackdropTemplate")
-    window:SetSize(560, 722)
+    window:SetSize(600, 390)
     window:SetPoint("CENTER")
     window:SetFrameStrata("DIALOG")
     window:SetClampedToScreen(true)
@@ -49,47 +128,30 @@ local function BuildOptions()
     window:SetScript("OnDragStart", window.StartMoving)
     window:SetScript("OnDragStop", window.StopMovingOrSizing)
     window:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         tile = true, tileSize = 16, edgeSize = 16,
         insets = {left = 4, right = 4, top = 4, bottom = 4},
     })
-    window:SetBackdropColor(0.06, 0.06, 0.06, 0.98)
+    window:SetBackdropColor(0.045, 0.04, 0.025, 1)
     window:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
     window:Hide()
     UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusOptions"
 
-    Label(window, "|cffffcc66ZwykPlus|r", 24, -20, 440, "GameFontNormalLarge")
-    Label(window, L.subtitle, 24, -48, 500)
+    Label(window, "|cffffcc66ZwykPlus|r", 24, -20, 148, "GameFontNormalLarge")
+    Label(window, "1.4.0", 24, -46, 130)
+    pageHeading = Label(window, "", 178, -20, 370, "GameFontNormalLarge")
+    Label(window, L.subtitle, 178, -48, 390)
     local closeIcon = CreateFrame("Button", nil, window, "UIPanelCloseButton")
     closeIcon:SetPoint("TOPRIGHT", -6, -6)
     closeIcon:SetScript("OnClick", function() window:Hide() end)
 
-    Checkbox(window, "hideErrors", L.errors, 22, -77, 470)
-    Label(window, L.errorsHelp, 54, -108, 476)
-
-    Checkbox(window, "maxZoom", L.camera, 22, -141, 470)
-    Label(window, L.cameraHelp, 54, -173, 476)
-    Checkbox(window, "zoomOnLogin", L.zoom, 49, -199, 440, "maxZoom")
-
-    Checkbox(window, "autoTracking", L.tracking, 22, -245, 470)
-    Label(window, L.trackingHelp, 54, -277, 476)
-    Checkbox(window, "minerals", L.minerals, 49, -300, 135, "autoTracking")
-    Checkbox(window, "herbs", L.herbs, 225, -300, 130, "autoTracking")
-    Checkbox(window, "fish", L.fish, 393, -300, 125, "autoTracking")
-    Label(window, L.trackingNote, 54, -335, 476)
-    Checkbox(window, "auraSource", L.auraSource, 22, -373, 470)
-    Label(window, L.auraSourceHelp, 54, -405, 476)
-    Checkbox(window, "auraSourceTarget", L.auraSourceTarget, 49, -436, 440, "auraSource")
-    Label(window, L.auraSourceTargetHelp, 81, -467, 449)
-    Checkbox(window, "chatItemIcons", L.chatItemIcons, 22, -503, 470)
-    Checkbox(window, "chatClassIcons", L.chatClassIcons, 22, -539, 470)
-    Checkbox(window, "chatRaceIcons", L.chatRaceIcons, 22, -575, 470)
-    Label(window, L.chatIconsHelp, 54, -612, 476)
-    Label(window, L.saved, 24, -653, 510)
+    BuildPages()
+    SelectPage(ZP.db.optionsPage)
+    Label(window, L.compactSaved, 24, -328, 550)
 
     local apply = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-    apply:SetSize(230, 24)
+    apply:SetSize(205, 24)
     apply:SetPoint("BOTTOMLEFT", 24, 15)
     apply:SetText(L.apply)
     apply:SetScript("OnClick", function() ZP:ApplyAll() end)

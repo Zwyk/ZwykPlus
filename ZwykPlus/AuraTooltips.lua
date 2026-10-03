@@ -1,7 +1,6 @@
 local _, ZP = ...
 local L = ZP.L
 local initialized = false
-local targetInitialized = false
 
 local getters = {
     GetUnitAura = {},
@@ -21,7 +20,7 @@ local function PlainString(value)
     return Accessible(value) and type(value) == "string" and value ~= ""
 end
 
-local function AuraSource(unit, index, filter, byInstance)
+function ZP:GetAuraSourceUnit(unit, index, filter, byInstance)
     if not PlainString(unit) or not Accessible(index) or type(index) ~= "number" then return end
     if not Accessible(filter) then return end
     local api = C_UnitAuras
@@ -47,54 +46,41 @@ local function AuraSource(unit, index, filter, byInstance)
     end
 end
 
-local function TargetAuraSource(_, button, mouseButton)
-    if not ZP.db or not ZP.db.auraSource or not ZP.db.auraSourceTarget then return end
-    if not Accessible(mouseButton) or mouseButton ~= "LeftButton" then return end
-    -- A caster can change during combat; do not keep a stale secure target assignment.
-    if not InCombatLockdown or InCombatLockdown() then return end
-    if not Accessible(button) or not button then return end
-    if button.IsForbidden and button:IsForbidden() then return end
-    if not Accessible(button.isExample) or button.isExample then return end
-    local auraType = button.auraType
-    if not PlainString(auraType) or (auraType ~= "Buff" and auraType ~= "Debuff" and auraType ~= "DeadlyDebuff") then return end
-    local info = button.buttonInfo
-    if not Accessible(info) or type(info) ~= "table" then return end
-    local unit = button.unit
-    if not Accessible(unit) then return end
-    if not PlainString(unit) then unit = PlayerFrame and PlayerFrame.unit end
-    local instanceID = button.deadlyInstanceID
-    if not Accessible(instanceID) then return end
-    if instanceID == nil then instanceID = info.auraInstanceID end
-    if not Accessible(instanceID) then return end
-    local filter = auraType == "Buff" and "HELPFUL" or "HARMFUL"
-    local source
-    if instanceID ~= nil then
-        source = AuraSource(unit, instanceID, filter, true)
-    else
-        source = AuraSource(unit, info.index, filter, false)
+local function SourceColor(source)
+    if not UnitClass then return 1, 0.82, 0 end
+    if UnitIsPlayer then
+        local ok, player = pcall(UnitIsPlayer, source)
+        if not ok or not Accessible(player) or not player then return 1, 0.82, 0 end
     end
-    if not source or not UnitExists or not TargetUnit then return end
-    local ok, exists = pcall(UnitExists, source)
-    if not ok or not Accessible(exists) or not exists then return end
-    -- This runs only in response to the player's actual click; never queue targeting.
-    pcall(TargetUnit, source)
-end
-
-function ZP:InitializeAuraSourceTarget()
-    if targetInitialized or not (EventRegistry and EventRegistry.RegisterCallback) then return end
-    EventRegistry:RegisterCallback("BuffButton.OnClick", TargetAuraSource, self)
-    targetInitialized = true
+    local ok, _, class = pcall(UnitClass, source)
+    if not ok or not PlainString(class) then return 1, 0.82, 0 end
+    local color
+    if C_ClassColor and C_ClassColor.GetClassColor then
+        local colorOK, value = pcall(C_ClassColor.GetClassColor, class)
+        if colorOK and Accessible(value) then color = value end
+    end
+    if not color and RAID_CLASS_COLORS then color = RAID_CLASS_COLORS[class] end
+    if Accessible(color) and type(color) == "table" then
+        local r, g, b = color.r, color.g, color.b
+        if Accessible(r) and Accessible(g) and Accessible(b)
+            and type(r) == "number" and type(g) == "number" and type(b) == "number" then
+            return r, g, b
+        end
+    end
+    return 1, 0.82, 0
 end
 
 local function AddSource(tooltip, unit, index, filter, byInstance)
     if not ZP.db or not ZP.db.auraSource then return end
     if tooltip.IsForbidden and tooltip:IsForbidden() then return end
-    local source = AuraSource(unit, index, filter, byInstance)
+    local source = ZP:GetAuraSourceUnit(unit, index, filter, byInstance)
     if not source then return end
     local ok, name, realm = pcall(UnitName, source)
     if not ok or not PlainString(name) then return end
     if PlainString(realm) then name = name .. "-" .. realm end
-    tooltip:AddDoubleLine(L.source, name, 0.65, 0.65, 0.65, 1, 0.82, 0)
+    local r, g, b = SourceColor(source)
+    tooltip:AddDoubleLine(L.source, name, 0.65, 0.65, 0.65, r, g, b)
+    if ZP.PrepareAuraTarget and tooltip.GetOwner then ZP:PrepareAuraTarget(tooltip:GetOwner()) end
     return true
 end
 
