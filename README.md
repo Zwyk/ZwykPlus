@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.5.2**. Interface version: **16001**.
+Current version: **1.6.0**. Interface version: **16001**.
 
 ## Features
 
@@ -16,11 +16,18 @@ Current version: **1.5.2**. Interface version: **16001**.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Every option has a saved checkbox. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames.
+The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames.
+
+## Changes in 1.6.0
+
+- Fix portrait transparency after color updates: opacity is applied with the final vertex color, and both added textures are hidden at 100% transparency. The previous creation-time alpha could be overwritten by a later color update. The model and native border remain visible.
+- Add **Frames → Enable 3D portraits → Configure** with saved sliders for **Model size** (50–100%, default 76.5%) and **Background transparency** (0–100%, default 100%), plus **Class-colored background**. Turning class coloring off uses black; NPCs and unavailable class colors also use black.
+- Appearance settings apply live without rebinding models or restarting idle animations. Size changes made in combat apply afterward. Enabling or disabling 3D portraits still requires a reload. Apply preserves unchanged animations and retries failed models.
+- Diagnostics now show the requested appearance settings and actual background/overlay alpha values.
 
 ## Changes in 1.5.2
 
-- Make the 3D portrait backdrop and soft overlay fully transparent, removing the opaque colored fill. Keep the larger 76.5% model viewport, native border, head zoom, idle animation and loading fallback. The overlay is painted shading rather than a real model mask, so it must also be transparent; circular clipping remains unavailable.
+- Set initial backdrop and overlay opacity to zero while preserving the larger viewport, border and animation. Later color updates could restore opacity; this is corrected in 1.6.0. Circular clipping remains unavailable.
 
 ## Changes in 1.5.1
 
@@ -73,6 +80,6 @@ Version 1.5.0 adds regression checks for viewport bounds, independent portrait a
 
 Version 1.5.1 checks the larger viewport, background/model/overlay ordering, texture visibility during loading and fallback, safe background colors, retained animations and the new TGA assets. Actual visual blending still needs confirmation inside Forever.
 
-Version 1.5.2 checks zero opacity for both added textures across portrait updates and loading/fallback, while preserving the model's normal opacity and independent animations.
+Version 1.6.0 uses a shared-alpha texture mock to catch color updates that restore opacity. Checks cover transparent, partial and opaque backgrounds, class/black colors, live resizing, combat deferral, settings validation and saved values, unchanged animations, 2D fallback and both localized configuration layouts. Final rendering still needs an in-game check.
 
 See [the detailed README](README.txt) for behavior, limitations and API source references.

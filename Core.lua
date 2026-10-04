@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.5.2"
+ZP.version = "1.6.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -16,8 +16,27 @@ local defaults = {
     chatClassIcons = true,
     chatRaceIcons = true,
     portraits3D = false,
+    portraitModelSize = 76.5,
+    portraitBackgroundTransparency = 100,
+    portraitClassBackground = true,
     frameClassColors = false,
 }
+local numericSettings = {
+    portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
+    portraitBackgroundTransparency = {minimum = 0, maximum = 100, step = 1},
+}
+local function Readable(value)
+    if issecretvalue and issecretvalue(value) then return false end
+    return not canaccessvalue or canaccessvalue(value)
+end
+
+local function NormalizeNumber(key, value)
+    if not Readable(value) or type(value) ~= "number" or value ~= value
+        or value == math.huge or value == -math.huge then return defaults[key] end
+    local setting = numericSettings[key]
+    value = math.max(setting.minimum, math.min(setting.maximum, value))
+    return math.floor(value / setting.step + 0.5) * setting.step
+end
 local trackingSpells = {
     {key = "fish", spellID = 43308},
     {key = "herbs", spellID = 2383},
@@ -39,15 +58,28 @@ end
 function ZP:InitializeDB()
     if type(ZwykPlusDB) ~= "table" then ZwykPlusDB = {} end
     for key, value in pairs(defaults) do
-        if type(ZwykPlusDB[key]) ~= "boolean" then ZwykPlusDB[key] = value end
+        if numericSettings[key] then
+            ZwykPlusDB[key] = NormalizeNumber(key, ZwykPlusDB[key])
+        elseif not Readable(ZwykPlusDB[key]) or type(ZwykPlusDB[key]) ~= "boolean" then
+            ZwykPlusDB[key] = value
+        end
     end
-    ZwykPlusDB.version = 6
+    ZwykPlusDB.version = 7
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
 
 function ZP:Are3DPortraitsEnabled()
     return self.portraits3DActive == true
+end
+
+function ZP:GetPortraitSetting(key)
+    local value = self.db and self.db[key]
+    if numericSettings[key] then return NormalizeNumber(key, value) end
+    if key == "portraitClassBackground" then
+        if Readable(value) and type(value) == "boolean" then return value end
+        return defaults[key]
+    end
 end
 
 function ZP:NeedsReload()
@@ -167,7 +199,7 @@ end
 
 function ZP:SetOption(key, value)
     if defaults[key] == nil then return end
-    self.db[key] = not not value
+    self.db[key] = numericSettings[key] and NormalizeNumber(key, value) or not not value
     if key == "hideErrors" then
         self:ApplyErrors()
     elseif key == "maxZoom" or key == "zoomOnLogin" then
@@ -178,6 +210,8 @@ function ZP:SetOption(key, value)
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
     elseif key == "portraits3D" then
         -- Native portrait mode is applied on reload; the checkbox is saved now.
+    elseif numericSettings[key] or key == "portraitClassBackground" then
+        if self.RefreshPortraits then self:RefreshPortraits(false) end
     elseif key == "frameClassColors" then
         if self.RefreshNameColors then self:RefreshNameColors() end
     else
@@ -191,7 +225,7 @@ function ZP:ApplyAll()
     self:ApplyCamera(self.db.zoomOnLogin)
     self:ApplyTracking()
     if self.RefreshChatIcons then self:RefreshChatIcons() end
-    if self.RefreshPortraits then self:RefreshPortraits(true) end
+    if self.RefreshPortraits then self:RefreshPortraits(false) end
     if self.RefreshNameColors then self:RefreshNameColors() end
 end
 

@@ -3,9 +3,8 @@ local records = {}
 local failures = {}
 local events
 local Update
--- Keep Adapt's larger viewport, with transparent backdrop and shading layers.
+-- Configurable viewport and Adapt-style backdrop/shading layers.
 -- PlayerModel does not support Texture's circular mask API.
-local viewportFraction = 0.765
 local texturePath = "Interface\\AddOns\\ZwykPlus\\Textures\\"
 
 local function Accessible(value)
@@ -28,8 +27,9 @@ local function HideLayers(record)
 end
 
 local function ColorLayers(record, unit)
-    local r, g, b = 0.5, 0.5, 0.5
-    if UnitIsPlayer and UnitClass then
+    local opacity = 1 - ZP:GetPortraitSetting("portraitBackgroundTransparency") / 100
+    local r, g, b = 0, 0, 0
+    if ZP:GetPortraitSetting("portraitClassBackground") and UnitIsPlayer and UnitClass then
         local playerOK, player = pcall(UnitIsPlayer, unit)
         if playerOK and Accessible(player) and player then
             local classOK, _, class = pcall(UnitClass, unit)
@@ -43,8 +43,12 @@ local function ColorLayers(record, unit)
             end
         end
     end
-    record.background:SetVertexColor(r, g, b, 1)
-    record.overlay:SetVertexColor(r * 0.75, g * 0.75, b * 0.75, 1)
+    -- SetVertexColor also writes alpha; apply opacity in the final color update.
+    record.background:SetVertexColor(r, g, b, opacity)
+    record.overlay:SetVertexColor(r * 0.75, g * 0.75, b * 0.75, opacity)
+    record.background:SetAlpha(opacity)
+    record.overlay:SetAlpha(opacity)
+    return opacity
 end
 
 local function FitViewport(record)
@@ -52,7 +56,7 @@ local function FitViewport(record)
     local width, height = record.portrait:GetWidth(), record.portrait:GetHeight()
     if not Accessible(width) or not Accessible(height) or type(width) ~= "number" or
         type(height) ~= "number" or width <= 0 or height <= 0 then return false end
-    local size = math.min(width, height) * viewportFraction
+    local size = math.min(width, height) * ZP:GetPortraitSetting("portraitModelSize") / 100
     if record.viewportSize ~= size then
         record.model:ClearAllPoints()
         record.model:SetPoint("CENTER", record.portrait, "CENTER")
@@ -183,11 +187,15 @@ Update = function(record, force)
     record.reason, record.waiting = "3D active", false
     model:SetScript("OnUpdate", nil)
     record.portrait:Hide()
-    ColorLayers(record, unit)
-    record.background:Show()
+    local opacity = ColorLayers(record, unit)
     model:SetAlpha(1)
     model:Show()
-    record.overlay:Show()
+    if opacity > 0 then
+        record.background:Show()
+        record.overlay:Show()
+    else
+        HideLayers(record)
+    end
 end
 
 local function Portrait(frame)
@@ -227,7 +235,7 @@ local function AddFrame(frame, label)
         background:SetAllPoints(portrait)
         overlay = parent:CreateTexture(nil, drawLayer, nil, 1)
         overlay:Hide()
-        overlay:SetAlpha(0) -- Painted shading, not a model mask; keep it transparent too.
+        overlay:SetAlpha(0)
         loaded = overlay:SetTexture(texturePath .. "PortraitOverlay")
         if not Accessible(loaded) or loaded == false then texturesOK = false; return end
         overlay:SetAllPoints(portrait)
@@ -300,10 +308,13 @@ function ZP:GetPortraitDiagnostics()
                 "; 2Dshown=" .. Value(record.portrait, "IsShown") .. "; 3Dshown=" .. Value(record.model, "IsShown") ..
                 "; 3Dvisible=" .. Value(record.model, "IsVisible") .. "; alpha=" .. Value(record.model, "GetAlpha") ..
                 "; keepOnHide=" .. Value(record.model, "GetKeepModelOnHide") ..
-                "; backgroundShown=" .. Value(record.background, "IsShown") .. "; overlayShown=" .. Value(record.overlay, "IsShown")
+                "; backgroundShown=" .. Value(record.background, "IsShown") .. "; backgroundAlpha=" .. Value(record.background, "GetAlpha") ..
+                "; overlayShown=" .. Value(record.overlay, "IsShown") .. "; overlayAlpha=" .. Value(record.overlay, "GetAlpha")
             lines[#lines + 1] = "  portrait=" .. Value(record.portrait, "GetWidth") .. "x" .. Value(record.portrait, "GetHeight") ..
                 "; model=" .. Value(record.model, "GetWidth") .. "x" .. Value(record.model, "GetHeight") ..
-                "; viewport=76.5%, transparent background/overlay" ..
+                "; requestedSize=" .. ZP:GetPortraitSetting("portraitModelSize") .. "%" ..
+                "; backgroundTransparency=" .. ZP:GetPortraitSetting("portraitBackgroundTransparency") .. "%" ..
+                "; classBackground=" .. (ZP:GetPortraitSetting("portraitClassBackground") and "yes" or "no") ..
                 "; frameLevel=" .. Value(record.model, "GetFrameLevel") .. "; drawLayer=" .. Value(record.model, "GetModelDrawLayer")
             lines[#lines + 1] = "  headZoom=" .. (record.configured and "1" or "not configured") ..
                 "; idleAnimation=" .. (record.configured and "Stand (0)" or "not configured") .. "; paused=" .. Value(record.model, "GetPaused")

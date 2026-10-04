@@ -6,6 +6,8 @@ local pages, tabs = {}, {}
 local pageHeading
 local reloadNote
 local diagnosticsWindow, diagnosticsText, diagnosticsMeasure
+local portraitWindow
+local portraitSliders = {}
 local pageOrder = {"interface", "automation", "auras", "frames", "chat"}
 local pageNames = {
     interface = L.categoryInterface, automation = L.categoryAutomation,
@@ -42,6 +44,80 @@ local function Checkbox(parent, key, text, x, y, width, dependency, help)
     end
     controls[#controls + 1] = button
     return button
+end
+
+local function PortraitSlider(parent, key, text, y, minimum, maximum, step, help, low, high)
+    local slider = CreateFrame("Slider", "ZwykPlus" .. key, parent, "OptionsSliderTemplate")
+    slider:SetPoint("TOPLEFT", 30, y)
+    slider:SetSize(360, 17)
+    slider.key, slider.step = key, step
+    slider:SetMinMaxValues(minimum, maximum)
+    slider:SetValueStep(step)
+    if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
+    for _, suffix in ipairs({"Text", "Low", "High"}) do
+        local label = slider[suffix] or _G["ZwykPlus" .. key .. suffix]
+        if label then label:Hide() end
+    end
+    Label(parent, text, 30, y + 23, 292, "GameFontNormal")
+    slider.valueLabel = Label(parent, "", 335, y + 23, 55, "GameFontHighlight")
+    Label(parent, low, 30, y - 20, 170)
+    local highLabel = Label(parent, high, 200, y - 20, 190)
+    highLabel:SetJustifyH("RIGHT")
+    slider:SetScript("OnValueChanged", function(self, value)
+        value = math.floor(value / self.step + 0.5) * self.step
+        self.valueLabel:SetText(string.format(self.step < 1 and "%.1f%%" or "%d%%", value))
+        if not self.refreshing then ZP:SetOption(self.key, value) end
+    end)
+    slider:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(text, 1, 0.82, 0)
+        GameTooltip:AddLine(help, 0.85, 0.85, 0.85, true)
+        GameTooltip:Show()
+    end)
+    slider:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    portraitSliders[#portraitSliders + 1] = slider
+    return slider
+end
+
+function ZP:ShowPortraitOptions()
+    if not self.db then self:InitializeDB() end
+    if not portraitWindow then
+        local panel = CreateFrame("Frame", "ZwykPlusPortraitOptions", UIParent, "BackdropTemplate")
+        panel:Hide()
+        panel:SetSize(420, 360)
+        panel:SetPoint("CENTER")
+        panel:SetFrameStrata("DIALOG")
+        panel:SetClampedToScreen(true)
+        panel:EnableMouse(true)
+        panel:SetMovable(true)
+        panel:RegisterForDrag("LeftButton")
+        panel:SetScript("OnDragStart", panel.StartMoving)
+        panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+        panel:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
+        panel:SetBackdropColor(0.045, 0.04, 0.025, 1)
+        panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
+        Label(panel, L.portraitOptionsTitle, 24, -20, 340, "GameFontNormalLarge")
+        Label(panel, L.portraitOptionsHelp, 24, -50, 372)
+        PortraitSlider(panel, "portraitModelSize", L.portraitModelSize, -112, 50, 100, 0.5,
+            L.portraitModelSizeHelp, "50%", "100%")
+        PortraitSlider(panel, "portraitBackgroundTransparency", L.portraitBackgroundTransparency, -192, 0, 100, 1,
+            L.portraitBackgroundTransparencyHelp, L.portraitBackgroundOpaque, L.portraitBackgroundTransparent)
+        Checkbox(panel, "portraitClassBackground", L.portraitClassBackground, 24, -252, 340, nil, L.portraitClassBackgroundHelp)
+        Label(panel, L.portraitOptionsSaved, 24, -299, 265)
+        local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+        closeIcon:SetPoint("TOPRIGHT", -6, -6)
+        closeIcon:SetScript("OnClick", function() panel:Hide() end)
+        local close = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        close:SetPoint("BOTTOMRIGHT", -24, 15)
+        close:SetSize(90, 24)
+        close:SetText(L.close)
+        close:SetScript("OnClick", function() panel:Hide() end)
+        panel:SetScript("OnShow", function() ZP:RefreshOptions() end)
+        UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusPortraitOptions"
+        portraitWindow = panel
+    end
+    portraitWindow:Show()
 end
 
 local function SelectPage(key)
@@ -96,7 +172,12 @@ local function BuildPages()
 
     page = pages.frames
     Label(page, L.portraitsGroup, 0, 0, 370, "GameFontNormal")
-    Checkbox(page, "portraits3D", L.portraits3D, 0, -23, 355, nil, L.portraits3DHelp)
+    Checkbox(page, "portraits3D", L.portraits3D, 0, -23, 240, nil, L.portraits3DHelp)
+    local configure = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    configure:SetPoint("TOPLEFT", 279, -23)
+    configure:SetSize(114, 24)
+    configure:SetText(L.configure)
+    configure:SetScript("OnClick", function() ZP:ShowPortraitOptions() end)
     Label(page, L.namesGroup, 0, -76, 370, "GameFontNormal")
     Checkbox(page, "frameClassColors", L.frameClassColors, 0, -99, 355, nil, L.frameClassColorsHelp)
     local debug = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
@@ -129,6 +210,12 @@ function ZP:RefreshOptions()
         button:SetEnabled(enabled)
         button:SetAlpha(enabled and 1 or 0.45)
         button.label:SetAlpha(enabled and 1 or 0.45)
+    end
+    for _, slider in ipairs(portraitSliders) do
+        slider.refreshing = true
+        slider:SetValue(self.db[slider.key])
+        slider.valueLabel:SetText(string.format(slider.step < 1 and "%.1f%%" or "%d%%", self.db[slider.key]))
+        slider.refreshing = false
     end
     if reloadNote then
         local combat = InCombatLockdown and InCombatLockdown()
