@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.5.0**. Interface version: **16001**.
+Current version: **1.5.1**. Interface version: **16001**.
 
 ## Features
 
@@ -17,6 +17,12 @@ Current version: **1.5.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Every option has a saved checkbox. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames.
+
+## Changes in 1.5.1
+
+- Use Adapt's portrait layering approach: a circular background below the 3D model and a soft circular overlay above it. The centered viewport grows from 68% to 76.5% of the portrait diameter for a larger head area. Backgrounds use muted class colors for readable player classes and neutral gray otherwise.
+- Keep the existing head zoom, looping idle animation, unit-specific updates and 2D fallback. Both added textures stay hidden during loading or fallback. This softens the square edges visually; `PlayerModel` still has no true circular clipping, so some model geometry can extend beyond the circle.
+- Include the new `Textures` folder when updating, then restart the client so it can load the new texture files.
 
 ## Changes in 1.5.0
 
@@ -60,5 +66,7 @@ The addon targets Forever Interface 16001 and has no addon or library dependenci
 Feature behavior, saved settings, class colors, secure click attributes/state transitions, hidden/asynchronous model loading, idle animation, 2D fallback, reload decisions, public aura setter coverage, surname formatting, links/history, asynchronous item loading and restricted information were checked in a mocked Lua runtime. English/French panel layouts were checked with rendered widget positions. The strengthened portrait test fails against 1.4.0 and passes against 1.4.1. Actual secure hardware clicks, reload permission and portrait rendering still need validation inside Forever.
 
 Version 1.5.0 adds regression checks for viewport bounds, independent portrait animations during target/focus/portrait events, unit-identity caching, and native class-colored name restoration. In-game portrait appearance and animation continuity still need confirmation.
+
+Version 1.5.1 checks the larger viewport, background/model/overlay ordering, texture visibility during loading and fallback, safe background colors, retained animations and the new TGA assets. Actual visual blending still needs confirmation inside Forever.
 
 See [the detailed README](README.txt) for behavior, limitations and API source references.

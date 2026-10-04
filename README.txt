@@ -1,4 +1,4 @@
-ZwykPlus 1.5.0 - WoW Forever
+ZwykPlus 1.5.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -13,8 +13,8 @@ INSTALL
 SETTINGS
 The compact, opaque setup has Interface, Automation, Auras, Frames and Chat
 categories. It remembers the last selected category.
-Features are enabled initially except 3D portraits, which are opt-in under
-Frames. Updates preserve every existing setting.
+Features are enabled initially except 3D portraits and class-colored frame
+names, which are opt-in under Frames. Updates preserve every existing setting.
 Every checkbox is saved automatically for all characters on this WoW account.
 Most changes take effect immediately. Portrait mode applies on a UI reload;
 the warning beside Apply appears only when the saved mode differs from the
@@ -123,11 +123,18 @@ Unit/model events refresh the model. New model frames are created only outside
 combat. Disabling the option and reloading restores the original 2D portrait.
 Native model framing and border
 appearance still need visual validation in the Forever client.
-Version 1.5.0 fits the rectangular 3D viewport inside the native circular rim,
-centered at 68% of the portrait's smaller dimension. PlayerModel cannot use
-the circular mask supported by native 2D textures, so this uses a smaller
-3D head area rather than true circular clipping. No black corner overlays
-or changes to the native portrait texture or border are applied.
+Version 1.5.1 uses Adapt's visual layering approach: a circular backdrop below
+the model and a soft circular overlay above it, with a centered viewport at
+76.5% of the portrait's smaller dimension (up from 68% in 1.5.0). This gives
+the head more room and blends square edges into the circular background.
+Readable player classes use muted class colors; NPCs and unavailable class
+colors use neutral gray. The bundled radial textures are generated for
+ZwykPlus; Adapt is not required. Both layers hide during loading and fallback.
+PlayerModel cannot use the circular mask supported by native 2D textures.
+The overlay is cosmetic and cannot guarantee that all model geometry stays
+inside the circle. The native portrait texture and border are unchanged.
+When updating, copy the whole ZwykPlus folder including Textures and restart
+the client once to load the new texture files.
 Target/focus changes update only their own models. Unchanged readable unit
 identities keep their idle animation; a newly assigned target starts its
 own idle. Actual unit-model changes still refresh the affected unit.
@@ -207,6 +214,10 @@ Version 1.5.0 additionally checks viewport corner bounds, unchanged native
 portrait dimensions, isolated target/focus events, cached-unit animation
 retention, public/restricted identity changes, and immediate name colors with
 native color restoration on player/NPC frame reuse and option changes.
+Version 1.5.1 checks the enlarged viewport, background/model/overlay ordering,
+layer visibility through loading and fallback, safe background class colors,
+retained animations and uncompressed TGA dimensions/alpha. The viewport's
+corners are no longer guaranteed to lie within the native portrait circle.
 
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua

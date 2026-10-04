@@ -3,9 +3,10 @@ local records = {}
 local failures = {}
 local events
 local Update
--- PlayerModel has a rectangular viewport, not the Texture-only circular mask API.
--- Keep its corners inside the native portrait circle, with a small rim inset.
-local viewportFraction = 0.68
+-- Like Adapt, blend a larger rectangular model into a circular backdrop with a soft overlay.
+-- This is a visual treatment: PlayerModel does not support Texture's circular mask API.
+local viewportFraction = 0.765
+local texturePath = "Interface\\AddOns\\ZwykPlus\\Textures\\"
 
 local function Accessible(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -19,6 +20,31 @@ end
 local function Enabled()
     if ZP.Are3DPortraitsEnabled then return ZP:Are3DPortraitsEnabled() end
     return ZP.db and ZP.db.portraits3D
+end
+
+local function HideLayers(record)
+    record.background:Hide()
+    record.overlay:Hide()
+end
+
+local function ColorLayers(record, unit)
+    local r, g, b = 0.5, 0.5, 0.5
+    if UnitIsPlayer and UnitClass then
+        local playerOK, player = pcall(UnitIsPlayer, unit)
+        if playerOK and Accessible(player) and player then
+            local classOK, _, class = pcall(UnitClass, unit)
+            if classOK and String(class) then
+                local color = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[class]) or
+                    (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class])
+                if color and Accessible(color) and Accessible(color.r) and Accessible(color.g) and Accessible(color.b) and
+                    type(color.r) == "number" and type(color.g) == "number" and type(color.b) == "number" then
+                    r, g, b = color.r * 0.65, color.g * 0.65, color.b * 0.65
+                end
+            end
+        end
+    end
+    record.background:SetVertexColor(r, g, b, 1)
+    record.overlay:SetVertexColor(r * 0.75, g * 0.75, b * 0.75, 1)
 end
 
 local function FitViewport(record)
@@ -41,6 +67,7 @@ local function Restore(record, reason)
     record.waiting = false
     record.model:SetScript("OnUpdate", nil)
     record.model:Hide()
+    HideLayers(record)
     -- Keep a loaded model's identity across native frame hides (for example clearing a target).
     -- Actual unit/model changes and failed loads invalidate it separately.
     if record.active then
@@ -53,6 +80,7 @@ local function WaitForModel(record)
     record.reason = "waiting for model"
     record.waiting = true
     record.loadAge, record.checkAge = record.loadAge or 0, 0
+    HideLayers(record)
     if record.active then
         record.active = false
         record.portrait:SetShown(record.wasShown)
@@ -108,6 +136,7 @@ Update = function(record, force)
         record.configured = false
         record.loadAge = 0
         record.binding = true
+        HideLayers(record)
         model:SetAlpha(0)
         model:Show()
         model:ClearModel()
@@ -154,8 +183,11 @@ Update = function(record, force)
     record.reason, record.waiting = "3D active", false
     model:SetScript("OnUpdate", nil)
     record.portrait:Hide()
+    ColorLayers(record, unit)
+    record.background:Show()
     model:SetAlpha(1)
     model:Show()
+    record.overlay:Show()
 end
 
 local function Portrait(frame)
@@ -172,7 +204,7 @@ local function AddFrame(frame, label)
     local parent = portrait:GetParent()
     local ok, model = pcall(CreateFrame, "PlayerModel", nil, parent)
     if not ok or not model then failures[label] = "model creation failed"; return end
-    if not (model.SetUnit and model.SetPortraitZoom and model.GetModelFileID and model.SetAnimation) then
+    if not (model.SetUnit and model.SetPortraitZoom and model.GetModelFileID and model.SetAnimation and model.SetModelDrawLayer) then
         failures[label] = "missing model API"; model:Hide(); return
     end
     -- Preserve loaded contents across visibility changes; otherwise a cached unit can point to an empty model.
@@ -181,8 +213,32 @@ local function AddFrame(frame, label)
     model:EnableMouse(false)
     -- Stay behind native frame borders and keep unit-frame mouse interactions intact.
     model:SetFrameLevel(parent:GetFrameLevel())
-    if model.SetModelDrawLayer then model:SetModelDrawLayer("BACKGROUND") end
-    local record = {frame = frame, portrait = portrait, model = model, label = label, reason = "not updated"}
+    if model.SetUsingParentLevel then model:SetUsingParentLevel(true) end
+    local drawLayer = portrait.GetDrawLayer and portrait:GetDrawLayer() == "OVERLAY" and "ARTWORK" or "BACKGROUND"
+    model:SetModelDrawLayer(drawLayer)
+    local background, overlay
+    local texturesOK = true
+    local layersOK = pcall(function()
+        background = parent:CreateTexture(nil, drawLayer, nil, -1)
+        background:Hide()
+        local loaded = background:SetTexture(texturePath .. "PortraitBackground")
+        if not Accessible(loaded) or loaded == false then texturesOK = false; return end
+        background:SetAllPoints(portrait)
+        overlay = parent:CreateTexture(nil, drawLayer, nil, 1)
+        overlay:Hide()
+        loaded = overlay:SetTexture(texturePath .. "PortraitOverlay")
+        if not Accessible(loaded) or loaded == false then texturesOK = false; return end
+        overlay:SetAllPoints(portrait)
+    end)
+    if not layersOK or not texturesOK then
+        if background then background:Hide() end
+        if overlay then overlay:Hide() end
+        model:Hide()
+        failures[label] = texturesOK and "portrait layer creation failed" or "portrait textures unavailable; restart client"
+        return
+    end
+    local record = {frame = frame, portrait = portrait, model = model, background = background, overlay = overlay,
+        label = label, reason = "not updated"}
     records[frame] = record
     failures[label] = nil
     model:SetScript("OnModelLoaded", function()
@@ -241,10 +297,11 @@ function ZP:GetPortraitDiagnostics()
                 "; loading=" .. (record.waiting and "yes" or "no") .. "; modelID=" .. Value(record.model, "GetModelFileID") ..
                 "; 2Dshown=" .. Value(record.portrait, "IsShown") .. "; 3Dshown=" .. Value(record.model, "IsShown") ..
                 "; 3Dvisible=" .. Value(record.model, "IsVisible") .. "; alpha=" .. Value(record.model, "GetAlpha") ..
-                "; keepOnHide=" .. Value(record.model, "GetKeepModelOnHide")
+                "; keepOnHide=" .. Value(record.model, "GetKeepModelOnHide") ..
+                "; backgroundShown=" .. Value(record.background, "IsShown") .. "; overlayShown=" .. Value(record.overlay, "IsShown")
             lines[#lines + 1] = "  portrait=" .. Value(record.portrait, "GetWidth") .. "x" .. Value(record.portrait, "GetHeight") ..
                 "; model=" .. Value(record.model, "GetWidth") .. "x" .. Value(record.model, "GetHeight") ..
-                "; viewport=inside native ring (68%)" ..
+                "; viewport=76.5%, circular background/soft overlay" ..
                 "; frameLevel=" .. Value(record.model, "GetFrameLevel") .. "; drawLayer=" .. Value(record.model, "GetModelDrawLayer")
             lines[#lines + 1] = "  headZoom=" .. (record.configured and "1" or "not configured") ..
                 "; idleAnimation=" .. (record.configured and "Stand (0)" or "not configured") .. "; paused=" .. Value(record.model, "GetPaused")
