@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.5.1**. Interface version: **16001**.
+Current version: **1.5.2**. Interface version: **16001**.
 
 ## Features
 
@@ -17,6 +17,10 @@ Current version: **1.5.1**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Every option has a saved checkbox. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames.
+
+## Changes in 1.5.2
+
+- Make the 3D portrait backdrop and soft overlay fully transparent, removing the opaque colored fill. Keep the larger 76.5% model viewport, native border, head zoom, idle animation and loading fallback. The overlay is painted shading rather than a real model mask, so it must also be transparent; circular clipping remains unavailable.
 
 ## Changes in 1.5.1
 
@@ -68,5 +72,7 @@ Feature behavior, saved settings, class colors, secure click attributes/state tr
 Version 1.5.0 adds regression checks for viewport bounds, independent portrait animations during target/focus/portrait events, unit-identity caching, and native class-colored name restoration. In-game portrait appearance and animation continuity still need confirmation.
 
 Version 1.5.1 checks the larger viewport, background/model/overlay ordering, texture visibility during loading and fallback, safe background colors, retained animations and the new TGA assets. Actual visual blending still needs confirmation inside Forever.
+
+Version 1.5.2 checks zero opacity for both added textures across portrait updates and loading/fallback, while preserving the model's normal opacity and independent animations.
 
 See [the detailed README](README.txt) for behavior, limitations and API source references.

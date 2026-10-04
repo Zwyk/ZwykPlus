@@ -1,4 +1,4 @@
-ZwykPlus 1.5.1 - WoW Forever
+ZwykPlus 1.5.2 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -135,6 +135,9 @@ The overlay is cosmetic and cannot guarantee that all model geometry stays
 inside the circle. The native portrait texture and border are unchanged.
 When updating, copy the whole ZwykPlus folder including Textures and restart
 the client once to load the new texture files.
+Version 1.5.2 makes both the backdrop and soft overlay fully transparent,
+removing the colored fill while retaining the larger model and native border.
+The shading overlay is not a true clipping mask and is transparent too.
 Target/focus changes update only their own models. Unchanged readable unit
 identities keep their idle animation; a newly assigned target starts its
 own idle. Actual unit-model changes still refresh the affected unit.
@@ -218,6 +221,8 @@ Version 1.5.1 checks the enlarged viewport, background/model/overlay ordering,
 layer visibility through loading and fallback, safe background class colors,
 retained animations and uncompressed TGA dimensions/alpha. The viewport's
 corners are no longer guaranteed to lie within the native portrait circle.
+Version 1.5.2 verifies zero opacity for both added textures through portrait
+updates and loading/fallback without dimming the model or resetting idle.
 
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua

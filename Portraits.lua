@@ -3,8 +3,8 @@ local records = {}
 local failures = {}
 local events
 local Update
--- Like Adapt, blend a larger rectangular model into a circular backdrop with a soft overlay.
--- This is a visual treatment: PlayerModel does not support Texture's circular mask API.
+-- Keep Adapt's larger viewport, with transparent backdrop and shading layers.
+-- PlayerModel does not support Texture's circular mask API.
 local viewportFraction = 0.765
 local texturePath = "Interface\\AddOns\\ZwykPlus\\Textures\\"
 
@@ -221,11 +221,13 @@ local function AddFrame(frame, label)
     local layersOK = pcall(function()
         background = parent:CreateTexture(nil, drawLayer, nil, -1)
         background:Hide()
+        background:SetAlpha(0)
         local loaded = background:SetTexture(texturePath .. "PortraitBackground")
         if not Accessible(loaded) or loaded == false then texturesOK = false; return end
         background:SetAllPoints(portrait)
         overlay = parent:CreateTexture(nil, drawLayer, nil, 1)
         overlay:Hide()
+        overlay:SetAlpha(0) -- Painted shading, not a model mask; keep it transparent too.
         loaded = overlay:SetTexture(texturePath .. "PortraitOverlay")
         if not Accessible(loaded) or loaded == false then texturesOK = false; return end
         overlay:SetAllPoints(portrait)
@@ -301,7 +303,7 @@ function ZP:GetPortraitDiagnostics()
                 "; backgroundShown=" .. Value(record.background, "IsShown") .. "; overlayShown=" .. Value(record.overlay, "IsShown")
             lines[#lines + 1] = "  portrait=" .. Value(record.portrait, "GetWidth") .. "x" .. Value(record.portrait, "GetHeight") ..
                 "; model=" .. Value(record.model, "GetWidth") .. "x" .. Value(record.model, "GetHeight") ..
-                "; viewport=76.5%, circular background/soft overlay" ..
+                "; viewport=76.5%, transparent background/overlay" ..
                 "; frameLevel=" .. Value(record.model, "GetFrameLevel") .. "; drawLayer=" .. Value(record.model, "GetModelDrawLayer")
             lines[#lines + 1] = "  headZoom=" .. (record.configured and "1" or "not configured") ..
                 "; idleAnimation=" .. (record.configured and "Stand (0)" or "not configured") .. "; paused=" .. Value(record.model, "GetPaused")
