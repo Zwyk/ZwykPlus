@@ -1,4 +1,4 @@
-ZwykPlus 1.6.0 - WoW Forever
+ZwykPlus 1.6.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -237,6 +237,8 @@ than assuming those values are independent. Checks cover hidden transparent
 textures, partial/opaque/class/black backgrounds, real reported alpha, live
 size changes, combat deferral, validated saved settings and animation retention.
 The English/French appearance panels were rendered and interaction checked.
+Version 1.6.1 places both auxiliary windows above the main options panel and
+its controls. Opening before the main panel and repeated reopening are checked.
 
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua

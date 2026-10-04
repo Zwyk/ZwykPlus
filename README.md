@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.6.0**. Interface version: **16001**.
+Current version: **1.6.1**. Interface version: **16001**.
 
 ## Features
 
@@ -17,6 +17,10 @@ Current version: **1.6.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames.
+
+## Changes in 1.6.1
+
+- Draw portrait configuration and diagnostics above the main options window and its controls, including after reopening either window.
 
 ## Changes in 1.6.0
 
