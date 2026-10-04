@@ -1,4 +1,4 @@
-ZwykPlus 1.6.1 - WoW Forever
+ZwykPlus 1.7.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -14,7 +14,8 @@ SETTINGS
 The compact, opaque setup has Interface, Automation, Auras, Frames and Chat
 categories. It remembers the last selected category.
 Features are enabled initially except 3D portraits and class-colored frame
-names, which are opt-in under Frames. Updates preserve every existing setting.
+names (opt-in under Frames), and item binding icons (opt-in under Interface).
+Updates preserve every existing setting.
 Every checkbox is saved automatically for all characters on this WoW account.
 Most changes take effect immediately. Portrait mode applies on a UI reload;
 the warning beside Apply appears only when the saved mode differs from the
@@ -165,6 +166,21 @@ NPC names retain native colors. Disabling the option restores native colors;
 unknown or restricted class information is not inferred. Name text and
 Forever surnames are unchanged. Third-party replacement frames are not styled.
 
+Item binding icons (Interface > Items)
+Adds a small transparent chain at the lower-left of native bag and loot-roll
+item icons, including combined bags. A closed chain marks a currently
+soulbound bag item; an open chain marks an unbound Bind on Equip item. In
+loot rolls, closed means Bind on Pickup, since ownership has not been awarded.
+Binding is checked per bag slot, so two copies of the same item can differ.
+Moving, equipping, replacing items and delayed item data refresh the marker.
+Unknown/restricted binding, quest items and account-bound items are omitted.
+Account-until-equip items show closed only after the client confirms that the
+instance is no longer account-bound. Counts, item clicks and loot-roll actions
+are unchanged. Separate third-party bags and loot-roll replacements are not
+integrated. The saved option starts off and applies immediately without reload.
+Include Textures/BindingChainClosed.tga and Textures/BindingChainOpen.tga when
+updating, and restart the client to load the new texture files.
+
 Chat item icons
 Displays an item's icon immediately before its link in the default chat
 windows, including loot messages. Item name, quality color, hyperlink payload
@@ -239,6 +255,15 @@ size changes, combat deferral, validated saved settings and animation retention.
 The English/French appearance panels were rendered and interaction checked.
 Version 1.6.1 places both auxiliary windows above the main options panel and
 its controls. Opening before the main panel and repeated reopening are checked.
+Version 1.7.0 checks per-slot binding, pooled bag and roll reuse, delayed item
+data, restricted values, live toggling and transparent chain assets. Actual
+icon placement still needs validation inside Forever.
+
+Item binding implementation references (Forever source pin above):
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/GroupLootFrame.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/ContainerDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/ItemDocumentation.lua
 
 Aura tooltip implementation references (Forever UI source):
 https://github.com/Gethe/wow-ui-source/blob/forever/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua

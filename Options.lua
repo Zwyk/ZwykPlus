@@ -153,6 +153,8 @@ local function BuildPages()
     Label(page, L.cameraGroup, 0, -80, 370, "GameFontNormal")
     Checkbox(page, "maxZoom", L.compactCamera, 0, -103, 355, nil, L.cameraHelp)
     Checkbox(page, "zoomOnLogin", L.compactZoom, 23, -133, 332, "maxZoom", L.zoom)
+    Label(page, L.itemsGroup, 0, -183, 370, "GameFontNormal")
+    Checkbox(page, "itemBindingIcons", L.itemBindingIcons, 0, -206, 355, nil, L.itemBindingIconsHelp)
 
     page = pages.automation
     Label(page, L.trackingGroup, 0, 0, 370, "GameFontNormal")

@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.6.1**. Interface version: **16001**.
+Current version: **1.7.0**. Interface version: **16001**.
 
 ## Features
 
@@ -13,10 +13,17 @@ Current version: **1.6.1**. Interface version: **16001**.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
+- Optionally show small binding chain icons on native bag and loot-roll item icons.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames.
+The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.7.0
+
+- Add **Interface → Items → Item binding icons**, a saved option that applies immediately to native bags, combined bags and loot-roll icons. A small closed chain marks a currently soulbound bag item; an open chain marks an unbound Bind on Equip item. In rolls, closed means Bind on Pickup, since the item has not yet been awarded.
+- Read binding separately for each bag slot, including after moving or equipping an item. Reused icons and delayed item data refresh the marker. Unknown, restricted, quest and account-bound states are omitted; account-until-equip items can show the closed chain after confirmed soulbinding. Item clicks, counts and roll actions are unchanged.
+- Include both new chain textures when updating and restart the client so it can load the new files.
 
 ## Changes in 1.6.1
 
@@ -85,5 +92,7 @@ Version 1.5.0 adds regression checks for viewport bounds, independent portrait a
 Version 1.5.1 checks the larger viewport, background/model/overlay ordering, texture visibility during loading and fallback, safe background colors, retained animations and the new TGA assets. Actual visual blending still needs confirmation inside Forever.
 
 Version 1.6.0 uses a shared-alpha texture mock to catch color updates that restore opacity. Checks cover transparent, partial and opaque backgrounds, class/black colors, live resizing, combat deferral, settings validation and saved values, unchanged animations, 2D fallback and both localized configuration layouts. Final rendering still needs an in-game check.
+
+Version 1.7.0 checks binding per item instance, bag/roll reuse, delayed item data, restricted values, live toggling and the two transparent chain textures. Final icon placement still needs an in-game check.
 
 See [the detailed README](README.txt) for behavior, limitations and API source references.
