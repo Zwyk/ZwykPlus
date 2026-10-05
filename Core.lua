@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.7.2"
+ZP.version = "1.8.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -21,6 +21,7 @@ local defaults = {
     portraitClassBackground = true,
     frameClassColors = false,
     itemBindingIcons = false,
+    nameplateTargetEyes = false,
 }
 local numericSettings = {
     portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
@@ -65,7 +66,7 @@ function ZP:InitializeDB()
             ZwykPlusDB[key] = value
         end
     end
-    ZwykPlusDB.version = 8
+    ZwykPlusDB.version = 9
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -217,6 +218,8 @@ function ZP:SetOption(key, value)
         if self.RefreshNameColors then self:RefreshNameColors() end
     elseif key == "itemBindingIcons" then
         if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
+    elseif key == "nameplateTargetEyes" then
+        if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
     else
         self:ApplyTracking()
     end
@@ -231,6 +234,7 @@ function ZP:ApplyAll()
     if self.RefreshPortraits then self:RefreshPortraits(false) end
     if self.RefreshNameColors then self:RefreshNameColors() end
     if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
+    if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
 end
 
 function ZP:ApplyFromOptions()
@@ -271,6 +275,7 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializePortraits then ZP:InitializePortraits() end
         if ZP.InitializeNameColors then ZP:InitializeNameColors() end
         if ZP.InitializeItemBindingIcons then ZP:InitializeItemBindingIcons() end
+        if ZP.InitializeNameplateTargetEyes then ZP:InitializeNameplateTargetEyes() end
         if ZP.RegisterSettings then ZP:RegisterSettings() end
         CheckOldAddons()
         self:UnregisterEvent("PLAYER_LOGIN")

@@ -1,4 +1,4 @@
-ZwykPlus 1.7.2 - WoW Forever
+ZwykPlus 1.8.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -14,7 +14,8 @@ SETTINGS
 The compact, opaque setup has Interface, Automation, Auras, Frames and Chat
 categories. It remembers the last selected category.
 Features are enabled initially except 3D portraits and class-colored frame
-names (opt-in under Frames), and item binding icons (opt-in under Interface).
+names and nameplate targeting eyes (opt-in under Frames), and item binding
+icons (opt-in under Interface).
 Updates preserve every existing setting.
 Every checkbox is saved automatically for all characters on this WoW account.
 Most changes take effect immediately. Portrait mode applies on a UI reload;
@@ -166,6 +167,22 @@ NPC names retain native colors. Disabling the option restores native colors;
 unknown or restricted class information is not inferred. Name text and
 Forever surnames are unchanged. Third-party replacement frames are not styled.
 
+Eye on units targeting you (Frames > Nameplates)
+Shows a small pale gold eye above each visible, accessible nameplate whose
+unit currently targets the player. The saved option starts off and applies
+immediately. Enable the relevant friendly/enemy nameplates in WoW's settings;
+this feature does not change nameplate visibility settings. Units without
+visible nameplates cannot receive an overhead indicator.
+Checks exact targets, not threat or aggro, on unit/nameplate events and every
+0.2 seconds while enabled with active plates. Recycled/removed/hidden plates
+clear their old markers. Eyes do not intercept clicks or alter native frames.
+Forever's supported SetAlphaFromBoolean API can display a secret target
+comparison directly without revealing it to addon Lua. No target identity or
+alpha value is read back. If that API is missing or rejects a secret result,
+the marker is hidden; readable comparisons still work. Missing targets,
+unavailable data and forbidden/private plates are omitted.
+Include Textures/NameplateTargetEye.tga and restart the client after updating.
+
 Item binding icons (Interface > Items)
 Adds a small transparent chain at the lower-left of native bag and loot-roll
 item icons, including combined bags. A closed chain marks a currently
@@ -259,6 +276,19 @@ its controls. Opening before the main panel and repeated reopening are checked.
 Version 1.7.0 checks per-slot binding, pooled bag and roll reuse, delayed item
 data, restricted values, live toggling and transparent chain assets. Actual
 icon placement still needs validation inside Forever.
+Version 1.8.0 checks exact targets, independent target switches, nameplate
+reuse/removal/visibility, live toggling, bounded updates and direct secret
+boolean rendering without data inspection. Eye assets and English/French
+Frames layouts are checked; final placement and secret rendering still need
+confirmation inside Forever.
+
+Nameplate targeting implementation references (Forever source pin above):
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/NamePlateDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/NamePlateManagerDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/SecretPredicatesDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/SimpleRegionAPIDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_NamePlates/Blizzard_NamePlateBase.lua
 
 Item binding implementation references (Forever source pin above):
 https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua

@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.7.2**. Interface version: **16001**.
+Current version: **1.8.0**. Interface version: **16001**.
 
 ## Features
 
@@ -14,10 +14,18 @@ Current version: **1.7.2**. Interface version: **16001**.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show small binding chain icons on native bag and loot-roll item icons.
+- Optionally show an eye above visible nameplates of units currently targeting you.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits and nameplate targeting eyes start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.8.0
+
+- Add **Frames → Nameplates → Eye on units targeting you**, a saved option that applies immediately. A small pale gold eye appears above each visible, accessible nameplate whose unit currently targets the player. Enable the relevant nameplates in WoW's settings; the addon does not turn them on automatically.
+- Refresh on target/nameplate events and every 0.2 seconds while enabled with active plates. Removed, hidden and reused plates clear old markers. This checks the actual target rather than threat or aggro.
+- Use Forever's supported `SetAlphaFromBoolean` display API for secret target comparisons without inspecting the result. If this rendering API is unavailable, only readable comparisons are displayed. Missing targets and forbidden/private plates are omitted.
+- Include `Textures/NameplateTargetEye.tga` when updating and restart WoW to load the new texture.
 
 ## Changes in 1.7.2
 
@@ -102,5 +110,7 @@ Version 1.5.1 checks the larger viewport, background/model/overlay ordering, tex
 Version 1.6.0 uses a shared-alpha texture mock to catch color updates that restore opacity. Checks cover transparent, partial and opaque backgrounds, class/black colors, live resizing, combat deferral, settings validation and saved values, unchanged animations, 2D fallback and both localized configuration layouts. Final rendering still needs an in-game check.
 
 Version 1.7.0 checks binding per item instance, bag/roll reuse, delayed item data, restricted values, live toggling and the two transparent chain textures. Final icon placement still needs an in-game check.
+
+Version 1.8.0 checks exact player targets, independent target switches, plate reuse/removal, live toggling, bounded updates, safe secret-boolean rendering and the new eye texture. English/French Frames layouts are checked. Final eye placement and client-side secret rendering still need in-game confirmation.
 
 See [the detailed README](README.txt) for behavior, limitations and API source references.
