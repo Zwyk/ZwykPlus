@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.8.3**. Interface version: **16001**.
+Current version: **1.8.4**. Interface version: **16001**.
 
 ## Features
 
@@ -19,6 +19,10 @@ Current version: **1.8.3**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits and nameplate targeting eyes start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.8.4
+
+- Fix BetterBags binding chains changing size after login or a vendor redraw. Size follows the current item decoration rather than an unfinished icon-texture width, and updates when the layout resizes. Grid icons use 14-pixel chains; small list-row icons use 10-pixel chains.
 
 ## Changes in 1.8.3
 

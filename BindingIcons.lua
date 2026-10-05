@@ -221,6 +221,12 @@ local function RefreshBag(button, record)
     local state
     if ZP.db and ZP.db.itemBindingIcons and Shown(button) and icon then
         if record.betterBagsItem then
+            -- Icon textures can still have template dimensions during item/Updated.
+            -- Use the current decoration geometry, including subsequent row/grid resizing.
+            local width = button.GetWidth and button:GetWidth()
+            local height = button.GetHeight and button:GetHeight()
+            record.size = Number(width) and width > 0 and Number(height) and height > 0
+                and math.min(width, height) <= 24 and 10 or 14
             state = BetterBagsState(record)
         elseif not icon.IsShown or Shown(icon) then
             state = BagState(button)
@@ -255,6 +261,9 @@ local function RegisterBag(button)
         record.hooked = true
         button:HookScript("OnShow", function() RefreshBag(button, record) end)
         button:HookScript("OnHide", function() SetIcon(record) end)
+        button:HookScript("OnSizeChanged", function()
+            if record.betterBagsItem then RefreshBag(button, record) end
+        end)
         HookMethod(button, "Initialize", function() RefreshBag(button, record) end)
     end
     RefreshBag(button, record)
@@ -275,9 +284,6 @@ local function RegisterBetterBagsItem(_, item, decoration)
     end
     record.betterBagsItem, record.cleared = item, false
     record.corner, record.x, record.y = "TOPRIGHT", -1, -1
-    local icon = BagIcon(decoration)
-    local width = icon and icon.GetWidth and icon:GetWidth()
-    record.size = Number(width) and width <= 24 and 10 or 14
     betterBagItems[item] = decoration
     RegisterBag(decoration)
     if Usable(item.frame) and not betterBagOwners[item.frame] then
