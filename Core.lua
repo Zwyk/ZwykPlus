@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.8.1"
+ZP.version = "1.8.2"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -22,6 +22,7 @@ local defaults = {
     frameClassColors = false,
     itemBindingIcons = false,
     nameplateTargetEyes = false,
+    nameplateTargetEyesHidden = false,
 }
 local numericSettings = {
     portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
@@ -66,7 +67,7 @@ function ZP:InitializeDB()
             ZwykPlusDB[key] = value
         end
     end
-    ZwykPlusDB.version = 9
+    ZwykPlusDB.version = 10
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -218,7 +219,7 @@ function ZP:SetOption(key, value)
         if self.RefreshNameColors then self:RefreshNameColors() end
     elseif key == "itemBindingIcons" then
         if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
-    elseif key == "nameplateTargetEyes" then
+    elseif key == "nameplateTargetEyes" or key == "nameplateTargetEyesHidden" then
         if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
     else
         self:ApplyTracking()

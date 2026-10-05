@@ -1,4 +1,4 @@
-ZwykPlus 1.8.1 - WoW Forever
+ZwykPlus 1.8.2 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -170,17 +170,34 @@ Forever surnames are unchanged. Third-party replacement frames are not styled.
 Eye on units targeting you (Frames > Nameplates)
 Shows a small pale gold eye above each visible, accessible nameplate whose
 unit currently targets the player. The saved option starts off and applies
-immediately. Enable the relevant friendly/enemy nameplates in WoW's settings;
-this feature does not change nameplate visibility settings. Units without
-visible nameplates cannot receive an overhead indicator.
+immediately. Enable the relevant friendly/enemy nameplates in WoW's settings,
+or use the optional "Eyes with nameplates hidden" setting below it. Ordinary
+eyes do not change visibility settings; the additional mode activates hidden
+categories internally so WoW still supplies an overhead anchor.
 Checks exact targets, not threat or aggro, on unit/nameplate events and every
 0.2 seconds while enabled with active plates. Recycled/removed/hidden plates
-clear their old markers. Eyes do not intercept clicks or alter native frames.
+clear their old markers. The eye texture does not intercept clicks.
 Forever's supported SetAlphaFromBoolean API can display a secret target
 comparison directly without revealing it to addon Lua. No target identity or
 alpha value is read back. If that API is missing or rejects a secret result,
 the marker is hidden; readable comparisons still work. Missing targets,
 unavailable data and forbidden/private plates are omitted.
+
+Eyes with nameplates hidden (Frames > Nameplates)
+Requires "Eye on units targeting you" and starts disabled. Activates supported
+disabled friendly/enemy player, NPC, minion and minor-unit categories internally.
+Their native bars and selection highlights are hidden; accessible native names
+keep their own text, font, opacity and visibility rules. Enabled categories keep
+normal bars. If Always Show Nameplates was off, bars are hidden outside combat
+except for a confirmed current target in an originally enabled category.
+Disabling either eye option restores previous visibility settings and native
+opacity/inheritance. Visibility changes wait until combat ends. Pending restores
+use per-character SavedVariables so combat reloads do not overwrite the baseline.
+The mode still uses real nameplates and retains their positioning, range and
+interaction behavior. Exact automatic-display exceptions and guardian/minion
+classification are controlled by the client. Forbidden plates and unavailable
+targets cannot be covered. Other nameplate addons or inaccessible native visual
+children may prevent complete hiding; final appearance needs an in-game check.
 Include Textures/NameplateTargetEye.tga and restart the client after updating.
 
 Item binding icons (Interface > Items)
@@ -291,6 +308,10 @@ Version 1.8.1 checks the supplied BetterBags 0.5.14 message dispatcher,
 physical inventory/bank slots, merged/unmerged groups, themed/list icons,
 clearing/reuse, live toggles and load order. Native bag/roll checks pass;
 final placement with installed themes needs an in-game check.
+Version 1.8.2 checks hidden-category ownership, retained names, native selection
+highlights/opacity, frame pooling, settings restoration, combat deferral,
+failed writes, secret alpha and combat reload recovery. English/French layouts
+pass; actual client restrictions and other nameplate addons remain to be checked.
 
 Nameplate targeting implementation references (Forever source pin above):
 https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/NamePlateDocumentation.lua

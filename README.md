@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.8.1**. Interface version: **16001**.
+Current version: **1.8.2**. Interface version: **16001**.
 
 ## Features
 
@@ -14,11 +14,17 @@ Current version: **1.8.1**. Interface version: **16001**.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
-- Optionally show an eye above visible nameplates of units currently targeting you.
+- Optionally show an eye above units currently targeting you, including otherwise hidden nameplate categories.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits and nameplate targeting eyes start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.8.2
+
+- Add **Frames → Nameplates → Eyes with nameplates hidden**, an optional setting beneath the targeting-eye checkbox. It activates disabled friendly/enemy player, NPC, minion and minor-unit nameplate categories internally, hides their native bars and keeps accessible native names. Enabled categories retain their normal bars. Automatic visibility uses hidden bars outside combat, except a confirmed current target in an enabled category.
+- Restore previous visibility settings and native visual state when disabled. Visibility changes wait until combat ends; pending restores are saved per character across combat reloads. Frame reuse and native opacity updates retain the correct original visual state.
+- This still uses WoW's nameplate anchors: range, restricted frames and unavailable target data limit coverage. Minion classification and automatic-display exceptions depend on client behavior. Other nameplate addons or inaccessible native children can prevent complete visual hiding; verify the result in game.
 
 ## Changes in 1.8.1
 
@@ -120,5 +126,7 @@ Version 1.7.0 checks binding per item instance, bag/roll reuse, delayed item dat
 Version 1.8.0 checks exact player targets, independent target switches, plate reuse/removal, live toggling, bounded updates, safe secret-boolean rendering and the new eye texture. English/French Frames layouts are checked. Final eye placement and client-side secret rendering still need in-game confirmation.
 
 Version 1.8.1 checks BetterBags' actual message dispatcher, inventory/bank bindings, represented merged groups, grid/list/theme decorations, clearing/reuse, late initialization and live settings. Native bag and roll checks still pass. Final placement with installed BetterBags themes needs in-game confirmation.
+
+Version 1.8.2 checks category ownership, hidden bars with retained names, selection highlights, native opacity updates, pooled frame reuse, live settings, combat deferral, failed writes and pending restoration across reloads. Secret alpha is passed directly back to its rendering API without inspection. English/French layouts pass; actual client restrictions and other nameplate addons need in-game confirmation.
 
 See [the detailed README](README.txt) for behavior, limitations and API source references.
