@@ -3,9 +3,7 @@ local units = {}
 local plates = setmetatable({}, {__mode = "k"})
 local events, queued
 local elapsed = 0
-local loggingOut, cvarState
-local visualOwners = setmetatable({}, {__mode = "k"})
-local visualHooks = setmetatable({}, {__mode = "k"})
+local loggingOut, legacyVisibility
 local visibilityCVars = {
     "nameplateShowAll", "nameplateShowEnemies", "nameplateShowEnemyMinions", "nameplateShowEnemyMinus",
     "nameplateShowFriendlyPlayers", "nameplateShowFriendlyPlayerMinions", "nameplateShowFriendlyNpcs",
@@ -34,205 +32,32 @@ local function GetVisibility(name)
     if ok and Readable(value) and (value == "0" or value == "1") then return value end
 end
 
-local function SetVisibility(name, value)
+local function RestoreVisibility(name)
     local set = (C_CVar and C_CVar.SetCVar) or SetCVar
     if not set then return false end
-    local ok, result = pcall(set, name, value)
-    return ok and Readable(result) and result ~= false and GetVisibility(name) == value
+    pcall(set, name, "0")
+    return GetVisibility(name) == "0"
 end
 
-local function ApplyVisibility(enabled)
-    if not cvarState then
-        cvarState = {}
+local function RestoreLegacyVisibility()
+    -- Recovery only: older versions temporarily enabled these per-character CVars.
+    -- Never enable categories, suppress native graphics or create replacement names.
+    if not legacyVisibility then
+        legacyVisibility = {}
         if Readable(ZwykPlusNameplateState) and type(ZwykPlusNameplateState) == "table" then
             for _, name in ipairs(visibilityCVars) do
                 local value = ZwykPlusNameplateState[name]
-                if Readable(value) and value == "0" then cvarState[name] = value end
+                if Readable(value) and value == "0" then legacyVisibility[name] = value end
             end
         end
-        ZwykPlusNameplateState = cvarState -- Per character, including a reload during combat.
+        ZwykPlusNameplateState = next(legacyVisibility) and legacyVisibility or nil
     end
-    if InCombat() then return end
-    for _, name in ipairs(visibilityCVars) do
+    if not next(legacyVisibility) or InCombat() then return end
+    for name, original in pairs(legacyVisibility) do
         local value = GetVisibility(name)
-        if enabled and value == "0" then
-            local previous = cvarState[name]
-            cvarState[name] = value -- Added plates may be reported synchronously by SetCVar.
-            if not SetVisibility(name, "1") and not previous then cvarState[name] = nil end
-        elseif not enabled and cvarState[name] then
-            if value == cvarState[name] or (value == "1" and SetVisibility(name, cvarState[name])) then
-                cvarState[name] = nil
-            end
-        end
+        if value == original or (value == "1" and RestoreVisibility(name)) then legacyVisibility[name] = nil end
     end
-end
-
-local function UnitValue(api, ...)
-    if type(api) ~= "function" then return end
-    local ok, value = pcall(api, ...)
-    if ok and Readable(value) then return value end
-end
-
-local function NeedsHiddenVisuals(unit)
-    if not cvarState or not next(cvarState) then return false end
-    -- Always-show adds anchors outside the previous automatic visibility period.
-    if cvarState.nameplateShowAll and not InCombat()
-        and UnitValue(UnitIsUnit, unit, "target") == false then return true end
-    local friend = UnitValue(UnitIsFriend, "player", unit)
-    if type(friend) ~= "boolean" then return false end
-    if not friend and cvarState.nameplateShowEnemies then return true end
-    local player = UnitValue(UnitIsPlayer, unit)
-    if type(player) ~= "boolean" then return false end
-    if friend and player then return cvarState.nameplateShowFriendlyPlayers ~= nil end
-    if not player then
-        local controlled = UnitValue(UnitPlayerControlled, unit)
-        local pet = UnitValue(UnitIsOtherPlayersPet, unit)
-        if controlled == true or pet == true then
-            if friend then
-                return cvarState.nameplateShowFriendlyPlayers ~= nil
-                    or cvarState.nameplateShowFriendlyPlayerMinions ~= nil
-            end
-            if cvarState.nameplateShowEnemyMinions then return true end
-        elseif friend and controlled == false and (pet == false or not UnitIsOtherPlayersPet) then
-            return cvarState.nameplateShowFriendlyNpcs ~= nil
-        end
-        if not friend and cvarState.nameplateShowEnemyMinus
-            and UnitValue(UnitClassification, unit) == "minus" then return true end
-    end
-    return false
-end
-
-local function PublicObject(object)
-    if not Readable(object) or not object then return false end
-    if type(object) ~= "table" and type(object) ~= "userdata" then return false end
-    if not object.IsForbidden then return false end
-    local ok, forbidden = pcall(object.IsForbidden, object)
-    return ok and Readable(forbidden) and forbidden == false
-end
-
-local function RestoreVisual(record)
-    if record.nameText then record.nameText:Hide() end
-    if record.guildText then record.guildText:Hide() end
-    local visual = record.visual
-    record.visual = nil
-    if not visual or visualOwners[visual.frame] ~= visual then return end
-    visualOwners[visual.frame] = nil
-    visual.writing = true
-    if PublicObject(visual.frame) then pcall(visual.frame.SetAlpha, visual.frame, visual.alpha) end
-    if visual.highlight and PublicObject(visual.highlight) then
-        pcall(visual.highlight.SetIgnoreParentAlpha, visual.highlight, visual.ignoreAlpha)
-    end
-    if visual.name and PublicObject(visual.name) then
-        pcall(visual.name.SetIgnoreParentAlpha, visual.name, visual.nameIgnoreAlpha)
-    end
-    visual.writing = false
-end
-
-local function SuppressVisual(record)
-    local frame = record.plate.UnitFrame
-    if not PublicObject(frame) or not frame.GetAlpha or not frame.SetAlpha then RestoreVisual(record); return end
-    if record.visual and record.visual.frame ~= frame then RestoreVisual(record) end
-    local visual = record.visual
-    if not visual then
-        local previous = visualOwners[frame]
-        if previous then RestoreVisual(previous.record) end
-        local ok, alpha = pcall(frame.GetAlpha, frame)
-        if not ok then return end
-        if not (issecretvalue and issecretvalue(alpha))
-            and (not Readable(alpha) or type(alpha) ~= "number") then return end
-        visual = {frame = frame, alpha = alpha, record = record}
-        local highlight = frame.selectionHighlight
-        if PublicObject(highlight) and highlight.IsIgnoringParentAlpha and highlight.SetIgnoreParentAlpha then
-            local read, ignore = pcall(highlight.IsIgnoringParentAlpha, highlight)
-            if read and Readable(ignore) and type(ignore) == "boolean" then
-                visual.highlight, visual.ignoreAlpha = highlight, ignore
-            end
-        end
-        local name = frame.name
-        if PublicObject(name) and name.IsIgnoringParentAlpha and name.SetIgnoreParentAlpha then
-            local read, ignore = pcall(name.IsIgnoringParentAlpha, name)
-            if read and Readable(ignore) and type(ignore) == "boolean" then
-                visual.name, visual.nameIgnoreAlpha = name, ignore
-            end
-        end
-        record.visual, visualOwners[frame] = visual, visual
-        if not visualHooks[frame] and hooksecurefunc then
-            local hooked = pcall(hooksecurefunc, frame, "SetAlpha", function(_, requested)
-                local current = visualOwners[frame]
-                if not current or current.writing or not PublicObject(frame) then return end
-                current.alpha = requested -- Preserve opaque native alpha without inspecting it.
-                current.writing = true
-                pcall(frame.SetAlpha, frame, 0)
-                current.writing = false
-            end)
-            if hooked then visualHooks[frame] = true end
-        end
-    end
-    visual.writing = true
-    local hidden = true
-    if visual.highlight then hidden = pcall(visual.highlight.SetIgnoreParentAlpha, visual.highlight, false) end
-    if visual.name then hidden = pcall(visual.name.SetIgnoreParentAlpha, visual.name, false) and hidden end
-    hidden = pcall(frame.SetAlpha, frame, 0) and hidden
-    visual.writing = false
-    return hidden
-end
-
-local function NameText(plate, size)
-    local text = plate:CreateFontString(nil, "OVERLAY")
-    text:SetFont(UNIT_NAME_FONT or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size, "")
-    text:SetJustifyH("CENTER")
-    text:SetWordWrap(false)
-    text:SetNonSpaceWrap(false)
-    text:SetShadowColor(0, 0, 0, 1)
-    text:SetShadowOffset(1, -1)
-    if text.SetIgnoreParentScale then text:SetIgnoreParentScale(true) end
-    text:Hide()
-    return text
-end
-
-local function NameColor(unit)
-    if UnitSelectionColor then
-        local ok, r, g, b = pcall(UnitSelectionColor, unit, true)
-        if ok and Readable(r) and Readable(g) and Readable(b)
-            and type(r) == "number" and type(g) == "number" and type(b) == "number" then return r, g, b end
-    end
-    local reaction = UnitValue(UnitReaction, unit, "player")
-    if type(reaction) == "number" then
-        if reaction < 4 then return 1, 0, 0 end
-        if reaction == 4 then return 1, 1, 0 end
-        return 0, 1, 0
-    end
-    return 1, 1, 1
-end
-
-local function UpdateFallbackName(record)
-    if record.nameText then record.nameText:Hide() end
-    if record.guildText then record.guildText:Hide() end
-    if not record.plate.CreateFontString or not record.visual.name then return end
-    -- These are our own labels; never resize, recolor or rewrite a pooled native name.
-    if UnitValue(UnitShouldDisplayName, record.unit) ~= true
-        and not (GetVisibility("UnitNameFocused") == "1"
-            and UnitValue(UnitIsUnit, record.unit, "target") == true) then return end
-    local name = UnitValue(UnitName, record.unit)
-    if type(name) ~= "string" or name == "" then return end
-    if not record.nameText then
-        record.nameText = NameText(record.plate, 12)
-        record.nameText:SetPoint("CENTER", record.plate, "CENTER", 0, 0)
-    end
-    local r, g, b = NameColor(record.unit)
-    record.nameText:SetText(name)
-    record.nameText:SetTextColor(r, g, b)
-    record.nameText:Show()
-    if UnitValue(UnitIsPlayer, record.unit) ~= true or GetVisibility("UnitNamePlayerGuild") ~= "1" then return end
-    local guild = UnitValue(GetGuildInfo, record.unit)
-    if type(guild) ~= "string" or guild == "" then return end
-    if not record.guildText then
-        record.guildText = NameText(record.plate, 10)
-        record.guildText:SetPoint("TOP", record.nameText, "BOTTOM", 0, -1)
-    end
-    record.guildText:SetText("<" .. guild .. ">")
-    record.guildText:SetTextColor(r, g, b)
-    record.guildText:Show()
+    ZwykPlusNameplateState = next(legacyVisibility) and legacyVisibility or nil
 end
 
 local function PublicPlate(plate)
@@ -271,15 +96,13 @@ end
 local function RefreshPlate(record)
     local unit, plate = record.unit, record.plate
     if not NameplateUnit(unit) or not PublicPlate(plate) or GetPlate(unit) ~= plate then
-        RestoreVisual(record); Hide(record); return
+        Hide(record); return
     end
     local shown = plate:IsShown()
-    if not Readable(shown) or shown ~= true then RestoreVisual(record); Hide(record); return end
+    if not Readable(shown) or shown ~= true then Hide(record); return end
     -- Native baseplates are reused. Recheck their public token, not pooled
     -- name/health/aura children that may now belong to another unit.
-    if plate.GetUnit and PlateUnit(plate) ~= unit then RestoreVisual(record); Hide(record); return end
-    if NeedsHiddenVisuals(unit) and SuppressVisual(record) then UpdateFallbackName(record)
-    else RestoreVisual(record) end
+    if plate.GetUnit and PlateUnit(plate) ~= unit then Hide(record); return end
     if not (ZP.db and ZP.db.nameplateTargetEyes) then Hide(record); return end
     if not UnitIsUnit then Hide(record); return end
     local ok, targeting = pcall(UnitIsUnit, unit .. "target", "player")
@@ -293,17 +116,12 @@ local function RefreshPlate(record)
     if not record.texture then
         local texture = plate:CreateTexture(nil, "OVERLAY", nil, 7)
         texture:SetSize(16, 16)
+        texture:SetPoint("BOTTOM", plate, "TOP", 0, 2)
         texture:SetTexture(texturePath)
         texture:Hide()
         record.texture = texture
     end
     local texture = record.texture
-    local anchor = record.nameText and record.nameText:IsShown() and record.nameText or plate
-    if record.eyeAnchor ~= anchor then
-        texture:ClearAllPoints()
-        texture:SetPoint("BOTTOM", anchor, "TOP", 0, 2)
-        record.eyeAnchor = anchor
-    end
     if texture.SetAlphaFromBoolean then
         -- This supported rendering API accepts secret booleans. Pass the
         -- comparison straight through; never inspect it or read alpha back.
@@ -328,8 +146,7 @@ end
 
 local function UpdatePolling()
     if not events then return end
-    local active = next(units) ~= nil and ((ZP.db and ZP.db.nameplateTargetEyes)
-        or (cvarState and next(cvarState) ~= nil))
+    local active = next(units) ~= nil and ZP.db and ZP.db.nameplateTargetEyes
     events:SetScript("OnUpdate", active and Poll or nil)
     if not active then elapsed = 0 end
 end
@@ -341,16 +158,15 @@ local function Attach(unit)
     if not record then
         record = {plate = plate}
         plates[plate] = record
-        plate:HookScript("OnHide", function() RestoreVisual(record); Hide(record) end)
+        plate:HookScript("OnHide", function() Hide(record) end)
         plate:HookScript("OnShow", function() RefreshPlate(record) end)
     end
     local previous = units[unit]
     if previous and previous ~= record then
-        RestoreVisual(previous)
         Hide(previous)
         previous.unit = nil
     end
-    if record.unit and record.unit ~= unit then RestoreVisual(record); units[record.unit] = nil end
+    if record.unit and record.unit ~= unit then units[record.unit] = nil end
     record.unit = unit
     units[unit] = record
     RefreshPlate(record)
@@ -368,13 +184,9 @@ end
 
 function ZP:RefreshNameplateTargetEyes()
     if loggingOut then return end
-    ApplyVisibility(self.db and self.db.nameplateTargetEyes and self.db.nameplateTargetEyesHidden)
+    RestoreLegacyVisibility()
     if not (self.db and self.db.nameplateTargetEyes) then
-        if cvarState and next(cvarState) then Discover() end
-        for _, record in pairs(plates) do
-            if cvarState and next(cvarState) and record.unit then RefreshPlate(record)
-            else RestoreVisual(record); Hide(record) end
-        end
+        for _, record in pairs(plates) do Hide(record) end
         UpdatePolling()
         return
     end
@@ -407,10 +219,11 @@ function ZP:InitializeNameplateTargetEyes()
     events:SetScript("OnEvent", function(_, event, unit)
         if event == "PLAYER_LOGOUT" then
             loggingOut = true
-            ApplyVisibility(false)
-            for _, record in pairs(plates) do RestoreVisual(record); Hide(record) end
+            RestoreLegacyVisibility()
+            for _, record in pairs(plates) do Hide(record) end
             events:SetScript("OnUpdate", nil)
         elseif event == "CVAR_UPDATE" then
+            if not legacyVisibility or not next(legacyVisibility) then return end
             if not Readable(unit) or type(unit) ~= "string" then return end
             for _, name in ipairs(visibilityCVars) do
                 if unit:lower() == name:lower() then QueueRefresh(); break end
@@ -418,14 +231,12 @@ function ZP:InitializeNameplateTargetEyes()
         elseif event == "NAME_PLATE_UNIT_REMOVED" then
             if not NameplateUnit(unit) then return end
             local record = units[unit]
-            if record then RestoreVisual(record) end
             Hide(record)
             if record then record.unit = nil end
             units[unit] = nil
             UpdatePolling()
         elseif event == "NAME_PLATE_UNIT_ADDED" then
-            if not NameplateUnit(unit) or not ((ZP.db and ZP.db.nameplateTargetEyes)
-                or (cvarState and next(cvarState))) then return end
+            if not NameplateUnit(unit) or not (ZP.db and ZP.db.nameplateTargetEyes) then return end
             Attach(unit)
             UpdatePolling()
             -- Native and addon event order can differ during assignment.
@@ -434,7 +245,6 @@ function ZP:InitializeNameplateTargetEyes()
             if NameplateUnit(unit) and units[unit] then RefreshPlate(units[unit]) end
         elseif event == "PLAYER_ENTERING_WORLD" then
             for token, record in pairs(units) do
-                RestoreVisual(record)
                 Hide(record)
                 record.unit = nil
                 units[token] = nil

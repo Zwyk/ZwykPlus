@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.8.4**. Interface version: **16001**.
+Current version: **1.8.5**. Interface version: **16001**.
 
 ## Features
 
@@ -14,11 +14,16 @@ Current version: **1.8.4**. Interface version: **16001**.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
-- Optionally show an eye above units currently targeting you, with compact names for otherwise hidden nameplate categories.
+- Optionally show an eye above existing visible, accessible nameplates for units currently targeting you.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits and nameplate targeting eyes start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.8.5
+
+- Remove **Eyes with nameplates hidden** and its replacement names. Keep the original targeting-eye option on existing visible, accessible nameplates without changing their appearance or enabling additional nameplate categories.
+- Updating restores visibility settings previously changed by the removed option. Restoration waits until combat ends if necessary. Floating world names without an accessible nameplate cannot display the eye.
 
 ## Changes in 1.8.4
 

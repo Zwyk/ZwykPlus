@@ -196,7 +196,6 @@ local function BuildPages()
     Checkbox(page, "frameClassColors", L.frameClassColors, 0, -126, 355, nil, L.frameClassColorsHelp)
     Label(page, L.nameplatesGroup, 0, -153, 370, "GameFontNormal")
     Checkbox(page, "nameplateTargetEyes", L.nameplateTargetEyes, 0, -176, 355, nil, L.nameplateTargetEyesHelp)
-    Checkbox(page, "nameplateTargetEyesHidden", L.nameplateTargetEyesHidden, 23, -206, 332, "nameplateTargetEyes", L.nameplateTargetEyesHiddenHelp)
 
     page = pages.chat
     Label(page, L.chatGroup, 0, 0, 370, "GameFontNormal")
