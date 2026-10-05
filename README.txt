@@ -1,4 +1,4 @@
-ZwykPlus 1.7.0 - WoW Forever
+ZwykPlus 1.7.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
