@@ -1,4 +1,4 @@
-ZwykPlus 1.8.0 - WoW Forever
+ZwykPlus 1.8.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -185,7 +185,8 @@ Include Textures/NameplateTargetEye.tga and restart the client after updating.
 
 Item binding icons (Interface > Items)
 Adds a small transparent chain at the lower-left of native bag and loot-roll
-item icons, including combined bags. A closed chain marks a currently
+item icons, including combined bags, and at the top-right of BetterBags icons.
+A closed chain marks a currently
 soulbound bag item; an open chain marks an unbound Bind on Equip item. In
 loot rolls, closed means Bind on Pickup, since ownership has not been awarded.
 Open chains use 75% opacity; closed chains remain fully opaque.
@@ -194,8 +195,13 @@ Moving, equipping, replacing items and delayed item data refresh the marker.
 Unknown/restricted binding, quest items and account-bound items are omitted.
 Account-until-equip items show closed only after the client confirms that the
 instance is no longer account-bound. Counts, item clicks and loot-roll actions
-are unchanged. Separate third-party bags and loot-roll replacements are not
-integrated. The saved option starts off and applies immediately without reload.
+are unchanged. BetterBags inventory/bank, merged groups, grid/list rows and
+themed decorations are supported automatically with the same checkbox.
+Small row icons use a smaller chain. Chains leave BetterBags' item levels,
+counts and ZwykValues upgrade arrows available. Empty/free/browser entries
+and inconsistent merged binding states have no marker. Other third-party
+bags and loot-roll replacements are not integrated. The saved option starts
+off and applies immediately without reload.
 Include Textures/BindingChainClosed.tga and Textures/BindingChainOpen.tga when
 updating, and restart the client to load the new texture files.
 
@@ -281,6 +287,10 @@ reuse/removal/visibility, live toggling, bounded updates and direct secret
 boolean rendering without data inspection. Eye assets and English/French
 Frames layouts are checked; final placement and secret rendering still need
 confirmation inside Forever.
+Version 1.8.1 checks the supplied BetterBags 0.5.14 message dispatcher,
+physical inventory/bank slots, merged/unmerged groups, themed/list icons,
+clearing/reuse, live toggles and load order. Native bag/roll checks pass;
+final placement with installed themes needs an in-game check.
 
 Nameplate targeting implementation references (Forever source pin above):
 https://github.com/Gethe/wow-ui-source/blob/e3ecc27b64d30fdc735a3f6579b866858f9f9df1/Interface/AddOns/Blizzard_APIDocumentationGenerated/NamePlateDocumentation.lua

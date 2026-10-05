@@ -5,7 +5,11 @@ local containers = setmetatable({}, {__mode = "k"})
 local hooks = setmetatable({}, {__mode = "k"})
 local globalHooks = {}
 local bindTypes, requestedItems = {}, {}
+local betterBags = {}
+local betterBagItems = setmetatable({}, {__mode = "k"})
+local betterBagOwners = setmetatable({}, {__mode = "k"})
 local events, queued, refreshing
+local QueueRefresh
 local texturePaths = {
     closed = "Interface\\AddOns\\" .. addonName .. "\\Textures\\BindingChainClosed.tga",
     open = "Interface\\AddOns\\" .. addonName .. "\\Textures\\BindingChainOpen.tga",
@@ -44,11 +48,12 @@ local function SetIcon(record, state, parent, icon)
     end
     if not record.texture then
         record.texture = parent:CreateTexture(nil, "OVERLAY", nil, 7)
-        record.texture:SetSize(14, 14)
     end
     local texture = record.texture
+    texture:SetSize(record.size or 14, record.size or 14)
     texture:ClearAllPoints()
-    texture:SetPoint("BOTTOMLEFT", icon, "BOTTOMLEFT", 1, 1)
+    local corner = record.corner or "BOTTOMLEFT"
+    texture:SetPoint(corner, icon, corner, record.x or 1, record.y or 1)
     texture:SetTexture(texturePaths[state])
     texture:SetAlpha(state == "open" and 0.75 or 1)
     texture:Show()
@@ -83,9 +88,8 @@ local function BagLocation(bag, slot)
     end
 end
 
-local function BagState(button)
-    if not (C_Container and C_Container.GetContainerItemInfo and button.GetBagID and button.GetID) then return end
-    local bag, slot = button:GetBagID(), button:GetID()
+local function BagStateAt(bag, slot, expectedID, allowBank)
+    if not (C_Container and C_Container.GetContainerItemInfo) then return end
     local maximum = NUM_TOTAL_BAG_FRAMES or NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS
     local inventory = Constants and Constants.InventoryConstants
     if inventory and Number(inventory.NumBagSlots) then
@@ -93,9 +97,10 @@ local function BagState(button)
         if Number(inventory.NumReagentBagSlots) then maximum = maximum + inventory.NumReagentBagSlots end
     end
     if not Number(maximum) then maximum = 4 end
-    if not Number(bag) or bag < 0 or bag > maximum or not Number(slot) or slot < 1 then return end
+    if not Number(bag) or (not allowBank and (bag < 0 or bag > maximum)) or not Number(slot) or slot < 1 then return end
     local ok, info = pcall(C_Container.GetContainerItemInfo, bag, slot)
     if not ok or not Readable(info) or type(info) ~= "table" then return end
+    if Number(expectedID) and (not Number(info.itemID) or expectedID ~= info.itemID) then return end
     local bound = info.isBound
     if not Readable(bound) then return end
     if bound == nil and C_Item and C_Item.IsBound then
@@ -123,6 +128,10 @@ local function BagState(button)
     end
 end
 
+local function BagState(button)
+    if button.GetBagID and button.GetID then return BagStateAt(button:GetBagID(), button:GetID()) end
+end
+
 local function RollState(frame)
     local id = frame.rollID
     if not Number(id) or id < 0 or not GetLootRollItemLink then return end
@@ -140,14 +149,83 @@ local function RollState(frame)
 end
 
 local function BagIcon(button)
-    return button.icon or button.Icon
+    return button.IconTexture or button.icon or button.Icon
         or (GetItemButtonIconTexture and GetItemButtonIconTexture(button))
+end
+
+local function BetterBagsData(item)
+    if not Readable(item) or type(item) ~= "table" or not Readable(item.isFreeSlot)
+        or item.isFreeSlot or not Readable(item.staticData) or item.staticData or not item.GetItemData then return end
+    local ok, data = pcall(item.GetItemData, item)
+    if not ok or not Readable(data) or type(data) ~= "table" or not Readable(data.isItemEmpty)
+        or data.isItemEmpty or not Readable(data.isFreeSlot) or data.isFreeSlot
+        or not Readable(data.isItemGap) or data.isItemGap
+        or not Readable(data.itemInfo) or type(data.itemInfo) ~= "table" then return end
+    return data
+end
+
+local function BetterBagsSlotState(data)
+    if not Readable(data) or type(data) ~= "table" then return end
+    local id = Readable(data.itemInfo) and type(data.itemInfo) == "table" and data.itemInfo.itemID
+    if not Number(id) then return end
+    -- BetterBags' data points to the real root slot, even for virtual groups.
+    -- Its interaction button can instead have the sentinel bag ID -3.
+    local bag = data.bagid
+    local constants = betterBags.constants
+    local bank = Number(bag) and constants and
+        ((constants.BANK_BAGS and constants.BANK_BAGS[bag]) or
+         (constants.ACCOUNT_BANK_BAGS and constants.ACCOUNT_BANK_BAGS[bag]))
+    return BagStateAt(bag, data.slotid, id, Readable(bank) and bank ~= nil and bank ~= false)
+end
+
+local function BetterBagsState(record)
+    if record.cleared then return end
+    local item = record.betterBagsItem
+    local data = BetterBagsData(item)
+    if not data or not Shown(item.frame) then return end
+    local state = BetterBagsSlotState(data)
+    if not state then return end
+    -- Hashes normally separate binding scopes. Check represented child slots
+    -- too, so a stale or mixed merged group never claims one binding state.
+    local api = betterBags.items
+    local merged = Number(data.stackedCount) and Number(data.itemInfo.currentItemCount)
+        and data.stackedCount > data.itemInfo.currentItemCount
+    if merged and api and api.GetAllSlotInfo and api.GetItemDataFromSlotKey and Readable(data.itemHash)
+        and type(data.itemHash) == "string" and Readable(item.kind) then
+        local ok, slots = pcall(api.GetAllSlotInfo, api)
+        local group = ok and Readable(slots) and type(slots) == "table" and slots[item.kind]
+        local stacks = Readable(group) and type(group) == "table" and group.stacks
+        if stacks and stacks.GetStackInfo then
+            local stackOK, stack = pcall(stacks.GetStackInfo, stacks, data.itemHash)
+            if stackOK and Readable(stack) and type(stack) == "table" and stack.rootItem == data.slotkey
+                and Readable(stack.slotkeys) and type(stack.slotkeys) == "table" then
+                local visible = group.visibleItemsBySlotKey
+                if not Readable(visible) or type(visible) ~= "table" then return end
+                for key in pairs(stack.slotkeys) do
+                    if not Readable(key) or type(key) ~= "string" then return end
+                    -- Independently displayed partial stacks are not included
+                    -- in this root, even when they share the same item hash.
+                    if visible[key] == nil then
+                        local childOK, child = pcall(api.GetItemDataFromSlotKey, api, key)
+                        if not childOK or BetterBagsSlotState(child) ~= state then return end
+                    end
+                end
+            end
+        end
+    end
+    return state
 end
 
 local function RefreshBag(button, record)
     local icon = BagIcon(button)
     local state
-    if ZP.db and ZP.db.itemBindingIcons and Shown(button) and icon then state = BagState(button) end
+    if ZP.db and ZP.db.itemBindingIcons and Shown(button) and icon then
+        if record.betterBagsItem then
+            state = BetterBagsState(record)
+        elseif not icon.IsShown or Shown(icon) then
+            state = BagState(button)
+        end
+    end
     SetIcon(record, state, button, icon)
 end
 
@@ -172,13 +250,93 @@ end
 local function RegisterBag(button)
     if not Usable(button) then return end
     local record = bagButtons[button]
-    if not record then
-        record = {}; bagButtons[button] = record
+    if not record then record = {}; bagButtons[button] = record end
+    if not record.hooked then
+        record.hooked = true
         button:HookScript("OnShow", function() RefreshBag(button, record) end)
         button:HookScript("OnHide", function() SetIcon(record) end)
         HookMethod(button, "Initialize", function() RefreshBag(button, record) end)
     end
     RefreshBag(button, record)
+end
+
+local function RegisterBetterBagsItem(_, item, decoration)
+    if not Readable(item) or type(item) ~= "table" or not Usable(decoration) then return end
+    local previous = betterBagItems[item]
+    if previous and previous ~= decoration and bagButtons[previous] then
+        bagButtons[previous].cleared = true
+        SetIcon(bagButtons[previous])
+    end
+    local record = bagButtons[decoration] or {}
+    bagButtons[decoration] = record
+    local previousItem = record.betterBagsItem
+    if previousItem and previousItem ~= item and betterBagItems[previousItem] == decoration then
+        betterBagItems[previousItem] = nil
+    end
+    record.betterBagsItem, record.cleared = item, false
+    record.corner, record.x, record.y = "TOPRIGHT", -1, -1
+    local icon = BagIcon(decoration)
+    local width = icon and icon.GetWidth and icon:GetWidth()
+    record.size = Number(width) and width <= 24 and 10 or 14
+    betterBagItems[item] = decoration
+    RegisterBag(decoration)
+    if Usable(item.frame) and not betterBagOwners[item.frame] then
+        betterBagOwners[item.frame] = true
+        item.frame:HookScript("OnShow", function()
+            local current = betterBagItems[item]
+            if current and bagButtons[current] then RefreshBag(current, bagButtons[current]) end
+        end)
+        item.frame:HookScript("OnHide", function()
+            local current = betterBagItems[item]
+            if current then SetIcon(bagButtons[current] or {}) end
+        end)
+    end
+    if not Shown(item.frame) and QueueRefresh then QueueRefresh() end
+end
+
+local function ClearBetterBagsItem(_, item, decoration)
+    for _, button in pairs({decoration, betterBagItems[item]}) do
+        local record = bagButtons[button]
+        if record and record.betterBagsItem == item then record.cleared = true; SetIcon(record) end
+    end
+end
+
+local function DiscoverBetterBags()
+    if not LibStub then return end
+    local ok, addon = pcall(function()
+        local ace = LibStub("AceAddon-3.0", true)
+        return ace and ace:GetAddon("BetterBags", true)
+    end)
+    if not ok or not addon or not addon.GetModule then return end
+    local function module(name)
+        local success, value = pcall(addon.GetModule, addon, name, true)
+        if success then return value end
+    end
+    local bus = module("Events")
+    if not bus or not bus.RegisterMessage or not bus._messageMap or not bus._eventHandler then return end
+    betterBags.items, betterBags.constants = module("Items"), module("Constants")
+    if not betterBags.updated then
+        betterBags.updated = pcall(bus.RegisterMessage, bus, "item/Updated", RegisterBetterBagsItem)
+    end
+    if not betterBags.clearing then
+        betterBags.clearing = pcall(bus.RegisterMessage, bus, "item/Clearing", ClearBetterBagsItem)
+    end
+    if not (ZP.db and ZP.db.itemBindingIcons) then return end
+    local itemFrames, themes, context = module("ItemFrame"), module("Themes"), module("Context")
+    if not itemFrames or not themes or not themes.GetItemButton or not context or not context.New then return end
+    local contextOK, ctx = pcall(context.New, context, "ZwykPlusBindingIcons")
+    if not contextOK or not ctx then return end
+    local seen = {}
+    local function visit(item)
+        if seen[item] then return end
+        seen[item] = true
+        if not BetterBagsData(item) or not Shown(item.frame) then return end
+        if item.frame.IsVisible and not item.frame:IsVisible() then return end
+        local success, decoration = pcall(themes.GetItemButton, themes, ctx, item)
+        if success then RegisterBetterBagsItem(ctx, item, decoration) end
+    end
+    for _, item in pairs(itemFrames.buttonsBySlotkey or {}) do visit(item) end
+    for item in pairs(itemFrames.activeItems or {}) do visit(item) end
 end
 
 local function RegisterRoll(frame)
@@ -231,12 +389,13 @@ function ZP:RefreshItemBindingIcons()
     if refreshing then return end
     refreshing = true
     Discover()
+    DiscoverBetterBags()
     for button, record in pairs(bagButtons) do RefreshBag(button, record) end
     for frame, record in pairs(rollFrames) do RefreshRoll(frame, record) end
     refreshing = false
 end
 
-local function QueueRefresh()
+QueueRefresh = function()
     if queued then return end
     if C_Timer and C_Timer.After then
         queued = true
@@ -264,4 +423,5 @@ function ZP:InitializeItemBindingIcons()
         QueueRefresh()
     end)
     self:RefreshItemBindingIcons()
+    QueueRefresh() -- BetterBags' Ace modules can initialize later in this tick.
 end

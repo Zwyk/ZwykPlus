@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.8.0**. Interface version: **16001**.
+Current version: **1.8.1**. Interface version: **16001**.
 
 ## Features
 
@@ -13,12 +13,18 @@ Current version: **1.8.0**. Interface version: **16001**.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
-- Optionally show small binding chain icons on native bag and loot-roll item icons.
+- Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
 - Optionally show an eye above visible nameplates of units currently targeting you.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits and nameplate targeting eyes start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.8.1
+
+- Support BetterBags item binding icons automatically using the existing checkbox, including inventory/bank items, merged groups, list rows and themed decorations. Chains sit at the top-right of BetterBags icons, leaving upgrade arrows, item levels and counts available; small row icons use a smaller chain.
+- Clear markers before pooled items are reused or become empty/browser entries. Query the represented physical slots and omit inconsistent merged binding states. Late loading, theme changes, live toggles and item-data updates refresh existing icons.
+- Audited against the supplied BetterBags 0.5.14 source; both addons' upgrade arrows and chains use independent overlays without changing BetterBags' selected upgrade provider.
 
 ## Changes in 1.8.0
 
@@ -112,5 +118,7 @@ Version 1.6.0 uses a shared-alpha texture mock to catch color updates that resto
 Version 1.7.0 checks binding per item instance, bag/roll reuse, delayed item data, restricted values, live toggling and the two transparent chain textures. Final icon placement still needs an in-game check.
 
 Version 1.8.0 checks exact player targets, independent target switches, plate reuse/removal, live toggling, bounded updates, safe secret-boolean rendering and the new eye texture. English/French Frames layouts are checked. Final eye placement and client-side secret rendering still need in-game confirmation.
+
+Version 1.8.1 checks BetterBags' actual message dispatcher, inventory/bank bindings, represented merged groups, grid/list/theme decorations, clearing/reuse, late initialization and live settings. Native bag and roll checks still pass. Final placement with installed BetterBags themes needs in-game confirmation.
 
 See [the detailed README](README.txt) for behavior, limitations and API source references.
