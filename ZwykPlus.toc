@@ -3,7 +3,7 @@
 ## Notes: Simple quality-of-life options for WoW Forever.
 ## Notes-frFR: Options pratiques pour WoW Forever.
 ## Author: Zwyk
-## Version: 1.8.2
+## Version: 1.8.3
 ## SavedVariables: ZwykPlusDB
 ## SavedVariablesPerCharacter: ZwykPlusNameplateState
 

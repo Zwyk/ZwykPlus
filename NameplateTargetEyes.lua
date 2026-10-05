@@ -77,7 +77,7 @@ local function NeedsHiddenVisuals(unit)
     if not cvarState or not next(cvarState) then return false end
     -- Always-show adds anchors outside the previous automatic visibility period.
     if cvarState.nameplateShowAll and not InCombat()
-        and UnitValue(UnitIsUnit, unit, "target") ~= true then return true end
+        and UnitValue(UnitIsUnit, unit, "target") == false then return true end
     local friend = UnitValue(UnitIsFriend, "player", unit)
     if type(friend) ~= "boolean" then return false end
     if not friend and cvarState.nameplateShowEnemies then return true end
@@ -111,6 +111,8 @@ local function PublicObject(object)
 end
 
 local function RestoreVisual(record)
+    if record.nameText then record.nameText:Hide() end
+    if record.guildText then record.guildText:Hide() end
     local visual = record.visual
     record.visual = nil
     if not visual or visualOwners[visual.frame] ~= visual then return end
@@ -167,10 +169,70 @@ local function SuppressVisual(record)
         end
     end
     visual.writing = true
-    if visual.highlight then pcall(visual.highlight.SetIgnoreParentAlpha, visual.highlight, false) end
-    if visual.name then pcall(visual.name.SetIgnoreParentAlpha, visual.name, true) end
-    pcall(frame.SetAlpha, frame, 0)
+    local hidden = true
+    if visual.highlight then hidden = pcall(visual.highlight.SetIgnoreParentAlpha, visual.highlight, false) end
+    if visual.name then hidden = pcall(visual.name.SetIgnoreParentAlpha, visual.name, false) and hidden end
+    hidden = pcall(frame.SetAlpha, frame, 0) and hidden
     visual.writing = false
+    return hidden
+end
+
+local function NameText(plate, size)
+    local text = plate:CreateFontString(nil, "OVERLAY")
+    text:SetFont(UNIT_NAME_FONT or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size, "")
+    text:SetJustifyH("CENTER")
+    text:SetWordWrap(false)
+    text:SetNonSpaceWrap(false)
+    text:SetShadowColor(0, 0, 0, 1)
+    text:SetShadowOffset(1, -1)
+    if text.SetIgnoreParentScale then text:SetIgnoreParentScale(true) end
+    text:Hide()
+    return text
+end
+
+local function NameColor(unit)
+    if UnitSelectionColor then
+        local ok, r, g, b = pcall(UnitSelectionColor, unit, true)
+        if ok and Readable(r) and Readable(g) and Readable(b)
+            and type(r) == "number" and type(g) == "number" and type(b) == "number" then return r, g, b end
+    end
+    local reaction = UnitValue(UnitReaction, unit, "player")
+    if type(reaction) == "number" then
+        if reaction < 4 then return 1, 0, 0 end
+        if reaction == 4 then return 1, 1, 0 end
+        return 0, 1, 0
+    end
+    return 1, 1, 1
+end
+
+local function UpdateFallbackName(record)
+    if record.nameText then record.nameText:Hide() end
+    if record.guildText then record.guildText:Hide() end
+    if not record.plate.CreateFontString or not record.visual.name then return end
+    -- These are our own labels; never resize, recolor or rewrite a pooled native name.
+    if UnitValue(UnitShouldDisplayName, record.unit) ~= true
+        and not (GetVisibility("UnitNameFocused") == "1"
+            and UnitValue(UnitIsUnit, record.unit, "target") == true) then return end
+    local name = UnitValue(UnitName, record.unit)
+    if type(name) ~= "string" or name == "" then return end
+    if not record.nameText then
+        record.nameText = NameText(record.plate, 12)
+        record.nameText:SetPoint("CENTER", record.plate, "CENTER", 0, 0)
+    end
+    local r, g, b = NameColor(record.unit)
+    record.nameText:SetText(name)
+    record.nameText:SetTextColor(r, g, b)
+    record.nameText:Show()
+    if UnitValue(UnitIsPlayer, record.unit) ~= true or GetVisibility("UnitNamePlayerGuild") ~= "1" then return end
+    local guild = UnitValue(GetGuildInfo, record.unit)
+    if type(guild) ~= "string" or guild == "" then return end
+    if not record.guildText then
+        record.guildText = NameText(record.plate, 10)
+        record.guildText:SetPoint("TOP", record.nameText, "BOTTOM", 0, -1)
+    end
+    record.guildText:SetText("<" .. guild .. ">")
+    record.guildText:SetTextColor(r, g, b)
+    record.guildText:Show()
 end
 
 local function PublicPlate(plate)
@@ -216,7 +278,8 @@ local function RefreshPlate(record)
     -- Native baseplates are reused. Recheck their public token, not pooled
     -- name/health/aura children that may now belong to another unit.
     if plate.GetUnit and PlateUnit(plate) ~= unit then RestoreVisual(record); Hide(record); return end
-    if NeedsHiddenVisuals(unit) then SuppressVisual(record) else RestoreVisual(record) end
+    if NeedsHiddenVisuals(unit) and SuppressVisual(record) then UpdateFallbackName(record)
+    else RestoreVisual(record) end
     if not (ZP.db and ZP.db.nameplateTargetEyes) then Hide(record); return end
     if not UnitIsUnit then Hide(record); return end
     local ok, targeting = pcall(UnitIsUnit, unit .. "target", "player")
@@ -230,12 +293,17 @@ local function RefreshPlate(record)
     if not record.texture then
         local texture = plate:CreateTexture(nil, "OVERLAY", nil, 7)
         texture:SetSize(16, 16)
-        texture:SetPoint("BOTTOM", plate, "TOP", 0, 2)
         texture:SetTexture(texturePath)
         texture:Hide()
         record.texture = texture
     end
     local texture = record.texture
+    local anchor = record.nameText and record.nameText:IsShown() and record.nameText or plate
+    if record.eyeAnchor ~= anchor then
+        texture:ClearAllPoints()
+        texture:SetPoint("BOTTOM", anchor, "TOP", 0, 2)
+        record.eyeAnchor = anchor
+    end
     if texture.SetAlphaFromBoolean then
         -- This supported rendering API accepts secret booleans. Pass the
         -- comparison straight through; never inspect it or read alpha back.

@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.8.2**. Interface version: **16001**.
+Current version: **1.8.3**. Interface version: **16001**.
 
 ## Features
 
@@ -14,11 +14,17 @@ Current version: **1.8.2**. Interface version: **16001**.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
-- Optionally show an eye above units currently targeting you, including otherwise hidden nameplate categories.
+- Optionally show an eye above units currently targeting you, with compact names for otherwise hidden nameplate categories.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits and nameplate targeting eyes start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.8.3
+
+- Give **Eyes with nameplates hidden** compact shadowed names, complete readable unit names and reaction colors, closer to WoW's floating names. An optional smaller guild line respects WoW's guild-name setting. Names remain centered without the native label's width restriction.
+- Use the fallback only where the original nameplate visibility settings would hide a plate. Full nameplates retain their normal appearance; native automatic visibility keeps its combat and confirmed-current-target exceptions. Names and guilds respect WoW's display settings.
+- The fallback still needs an accessible, game-provided nameplate. It cannot extend nameplate range or attach an eye to floating world names alone beyond that range. Restricted names or frames and other nameplate addons can limit the result; final appearance needs an in-game check.
 
 ## Changes in 1.8.2
 
