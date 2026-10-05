@@ -50,6 +50,7 @@ local function SetIcon(record, state, parent, icon)
     texture:ClearAllPoints()
     texture:SetPoint("BOTTOMLEFT", icon, "BOTTOMLEFT", 1, 1)
     texture:SetTexture(texturePaths[state])
+    texture:SetAlpha(state == "open" and 0.75 or 1)
     texture:Show()
 end
 

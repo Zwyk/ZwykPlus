@@ -1,4 +1,4 @@
-ZwykPlus 1.7.1 - WoW Forever
+ZwykPlus 1.7.2 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -171,6 +171,7 @@ Adds a small transparent chain at the lower-left of native bag and loot-roll
 item icons, including combined bags. A closed chain marks a currently
 soulbound bag item; an open chain marks an unbound Bind on Equip item. In
 loot rolls, closed means Bind on Pickup, since ownership has not been awarded.
+Open chains use 75% opacity; closed chains remain fully opaque.
 Binding is checked per bag slot, so two copies of the same item can differ.
 Moving, equipping, replacing items and delayed item data refresh the marker.
 Unknown/restricted binding, quest items and account-bound items are omitted.
