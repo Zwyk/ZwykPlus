@@ -7,6 +7,8 @@ local pageHeading
 local reloadNote
 local diagnosticsWindow, diagnosticsText, diagnosticsMeasure
 local portraitWindow
+local healerManaWindow
+local healerManaChoices = {}
 local portraitSliders = {}
 local pageOrder = {"interface", "automation", "auras", "frames", "chat"}
 local pageNames = {
@@ -120,6 +122,90 @@ function ZP:ShowPortraitOptions()
     portraitWindow:Show()
 end
 
+function ZP:RefreshHealerManaMembers()
+    if not healerManaWindow then return end
+    local members = self:GetHealerManaMembers()
+    local count = math.min(40, #members)
+    healerManaWindow:SetSize(620, math.max(220, 160 + math.ceil(count / 2) * 22))
+    healerManaWindow.empty:SetShown(count == 0)
+    for index, button in ipairs(healerManaChoices) do
+        local member = members[index]
+        if member then
+            button.guid = member.guid
+            button:SetChecked(member.selected)
+            button:SetEnabled(member.guid ~= nil)
+            button.label:SetText(member.name)
+            button.label:SetTextColor(member.r or 1, member.g or 1, member.b or 1)
+            button:SetAlpha(member.guid and 1 or 0.45)
+            button.label:SetAlpha(member.guid and 1 or 0.45)
+            button:Show()
+            button.label:Show()
+        else
+            button.guid = nil
+            button:Hide()
+            button.label:Hide()
+        end
+    end
+end
+
+function ZP:ShowHealerManaMembers()
+    if not self.db then self:InitializeDB() end
+    if not healerManaWindow then
+        local panel = CreateFrame("Frame", "ZwykPlusHealerManaMembers", UIParent, "BackdropTemplate")
+        panel:Hide()
+        panel:SetSize(620, 220)
+        panel:SetPoint("CENTER")
+        panel:SetFrameStrata("FULLSCREEN_DIALOG")
+        panel:SetClampedToScreen(true)
+        panel:EnableMouse(true)
+        panel:SetMovable(true)
+        panel:RegisterForDrag("LeftButton")
+        panel:SetScript("OnDragStart", panel.StartMoving)
+        panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+        panel:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
+        panel:SetBackdropColor(0.045, 0.04, 0.025, 1)
+        panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
+        Label(panel, L.healerManaSelectTitle, 24, -20, 545, "GameFontNormalLarge")
+        Label(panel, L.healerManaSelectHelp, 24, -50, 572)
+        panel.empty = Label(panel, L.healerManaNoGroup, 24, -104, 572)
+        for index = 1, 40 do
+            local x, y = 24 + ((index - 1) % 2) * 286, -104 - math.floor((index - 1) / 2) * 22
+            local button = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+            button:SetPoint("TOPLEFT", x, y)
+            button:SetSize(20, 20)
+            button.label = Label(panel, "", x + 26, y - 3, 250, "GameFontHighlightSmall")
+            if button.label.SetWordWrap then button.label:SetWordWrap(false) end
+            button:SetScript("OnClick", function(self)
+                if self.guid then ZP:SetHealerManaMember(self.guid, self:GetChecked()) end
+                ZP:RefreshHealerManaMembers()
+            end)
+            healerManaChoices[index] = button
+        end
+        local automatic = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        automatic:SetPoint("BOTTOMLEFT", 24, 15)
+        automatic:SetSize(205, 24)
+        automatic:SetText(L.healerManaAuto)
+        automatic:SetScript("OnClick", function()
+            ZP:ClearHealerManaMembers()
+            ZP:RefreshHealerManaMembers()
+        end)
+        local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+        closeIcon:SetPoint("TOPRIGHT", -6, -6)
+        closeIcon:SetScript("OnClick", function() panel:Hide() end)
+        local close = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        close:SetPoint("BOTTOMRIGHT", -24, 15)
+        close:SetSize(90, 24)
+        close:SetText(L.close)
+        close:SetScript("OnClick", function() panel:Hide() end)
+        panel:SetScript("OnShow", function() ZP:RefreshHealerManaMembers() end)
+        UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusHealerManaMembers"
+        healerManaWindow = panel
+    end
+    self:RefreshHealerManaMembers()
+    healerManaWindow:Show()
+end
+
 local function SelectPage(key)
     if not pages[key] then key = "interface" end
     for pageKey, page in pairs(pages) do
@@ -196,6 +282,12 @@ local function BuildPages()
     Checkbox(page, "frameClassColors", L.frameClassColors, 0, -126, 355, nil, L.frameClassColorsHelp)
     Label(page, L.nameplatesGroup, 0, -153, 370, "GameFontNormal")
     Checkbox(page, "nameplateTargetEyes", L.nameplateTargetEyes, 0, -176, 355, nil, L.nameplateTargetEyesHelp)
+    Checkbox(page, "healerMana", L.healerMana, 0, -206, 240, nil, L.healerManaHelp)
+    local resetMana = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    resetMana:SetPoint("TOPLEFT", 279, -206)
+    resetMana:SetSize(114, 24)
+    resetMana:SetText(L.healerManaReset)
+    resetMana:SetScript("OnClick", function() ZP:ResetHealerManaPosition() end)
 
     page = pages.chat
     Label(page, L.chatGroup, 0, 0, 370, "GameFontNormal")

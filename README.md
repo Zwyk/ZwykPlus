@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.8.5**. Interface version: **16001**.
+Current version: **1.9.0**. Interface version: **16001**.
 
 ## Features
 
@@ -15,10 +15,18 @@ Current version: **1.8.5**. Interface version: **16001**.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
 - Optionally show an eye above existing visible, accessible nameplates for units currently targeting you.
+- Optionally show a movable healer mana summary while in a party or raid, with individual percentages and a group average.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits and nameplate targeting eyes start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+
+## Changes in 1.9.0
+
+- Add **Frames → Healer mana summary**, an optional frame showing healer mana percentages and a group average while in a party or raid. Enabling or disabling it applies immediately.
+- Place the summary above the native party/raid frames by default. Hold **Alt** and drag with the left mouse button to move it. Its position is saved per character; **Reset position** returns it above the native group frames.
+- Use assigned healer roles automatically. If the group has no assigned roles, right-click the summary or use **/zp healers** to choose members. Manual choices are saved per character; **Use assigned roles** clears those overrides. Healers are not inferred from class alone.
+- Average readable mana percentages of alive, connected healers equally. Dead, offline or unreadable values do not contribute to the average. Restricted percentages can still appear individually through the client's supported text display API; otherwise unavailable percentages display **?**.
 
 ## Changes in 1.8.5
 

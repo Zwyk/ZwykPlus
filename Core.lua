@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.8.5"
+ZP.version = "1.9.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -22,6 +22,7 @@ local defaults = {
     frameClassColors = false,
     itemBindingIcons = false,
     nameplateTargetEyes = false,
+    healerMana = false,
 }
 local numericSettings = {
     portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
@@ -67,7 +68,7 @@ function ZP:InitializeDB()
         end
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
-    ZwykPlusDB.version = 11
+    ZwykPlusDB.version = 12
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -221,6 +222,8 @@ function ZP:SetOption(key, value)
         if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
     elseif key == "nameplateTargetEyes" then
         if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
+    elseif key == "healerMana" then
+        if self.RefreshHealerMana then self:RefreshHealerMana() end
     else
         self:ApplyTracking()
     end
@@ -236,6 +239,7 @@ function ZP:ApplyAll()
     if self.RefreshNameColors then self:RefreshNameColors() end
     if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
     if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
+    if self.RefreshHealerMana then self:RefreshHealerMana() end
 end
 
 function ZP:ApplyFromOptions()
@@ -277,6 +281,7 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializeNameColors then ZP:InitializeNameColors() end
         if ZP.InitializeItemBindingIcons then ZP:InitializeItemBindingIcons() end
         if ZP.InitializeNameplateTargetEyes then ZP:InitializeNameplateTargetEyes() end
+        if ZP.InitializeHealerMana then ZP:InitializeHealerMana() end
         if ZP.RegisterSettings then ZP:RegisterSettings() end
         CheckOldAddons()
         self:UnregisterEvent("PLAYER_LOGIN")
@@ -296,6 +301,8 @@ SlashCmdList.ZWYKPLUS = function(message)
     local command = type(message) == "string" and message:lower():match("^%s*(.-)%s*$") or ""
     if command == "portraits" or command == "debug portraits" then
         if ZP.ShowPortraitDiagnostics then ZP:ShowPortraitDiagnostics() end
+    elseif command == "healers" then
+        if ZP.ShowHealerManaMembers then ZP:ShowHealerManaMembers() end
     else
         ZP:ToggleOptions()
     end

@@ -3,9 +3,9 @@
 ## Notes: Simple quality-of-life options for WoW Forever.
 ## Notes-frFR: Options pratiques pour WoW Forever.
 ## Author: Zwyk
-## Version: 1.8.5
+## Version: 1.9.0
 ## SavedVariables: ZwykPlusDB
-## SavedVariablesPerCharacter: ZwykPlusNameplateState
+## SavedVariablesPerCharacter: ZwykPlusNameplateState, ZwykPlusHealerManaState
 
 Locale.lua
 Core.lua
@@ -16,4 +16,5 @@ Portraits.lua
 NameColors.lua
 BindingIcons.lua
 NameplateTargetEyes.lua
+HealerMana.lua
 Options.lua
