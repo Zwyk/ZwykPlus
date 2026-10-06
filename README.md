@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.9.0**. Interface version: **16001**.
+Current version: **1.10.0**. Interface version: **16001**.
 
 ## Features
 
@@ -16,10 +16,22 @@ Current version: **1.9.0**. Interface version: **16001**.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
 - Optionally show an eye above existing visible, accessible nameplates for units currently targeting you.
 - Optionally show a movable healer mana summary while in a party or raid, with individual percentages and a group average.
+- Optionally show a movable taxi-flight progress bar, with estimated destination and intermediate-stop countdowns.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has five categories: **Interface, Automation, Auras, Frames and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface.
+The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel.
+
+## Changes in 1.10.0
+
+- Add **Travel → Flight progress**, an optional bar shown during taxi flights, with destination, elapsed time and estimated remaining time. Intermediate stops show their names and countdowns when route data is available. Gray stops indicate their estimated passing time, rather than confirmed arrival. Use the mouse wheel to scroll long routes.
+- Use initial Classic flight observations as estimates on Forever, adjusted for the 20% Frequent Flier speed bonus when its rank is readable. Completed flights refine the full ordered route's duration; learned timings are saved for the account, separately by faction and direction. Only normal completed flights with confirmed taxi exit and regained control are learned. Early landing, death, reloads and disabling the feature do not record a duration.
+- Unknown routes, including new Forever routes without initial data, show **?** and elapsed time until a valid complete flight is learned. Intermediate countdowns remain **?** where segment durations are unknown, even if the whole route's duration has been learned. Intermediate points describe the route; they are not a guarantee that landing is allowed at each point.
+- Hold **Alt** and drag with the left mouse button to move the bar. Position is saved per character. **Preview** or **/zp flight** shows a short demonstration for positioning, and **Reset position** returns it to its default location.
+- **Land at next stop** requests early landing through the native client API. WoW chooses the next allowed stopping point; the addon does not select an arbitrary stop or request landing automatically. After a request, overall remaining time becomes **?**, since the actual stopping point is unknown; intermediate countdowns continue as estimates.
+- Reloading during a flight hides the bar until the next takeoff. It does not resume an old timer that could include time spent outside the client.
+
+Initial timings comprise 879 directed Classic observations adapted from [InFlight's data](https://github.com/LudiusMaximus/InFlight/blob/310f5fa167c6171ec2858561077ec441989541ae/Defaults.lua). Attribution and the full MIT license are included in `FlightData.lua`. These observations are a starting estimate, not verified Forever timings.
 
 ## Changes in 1.9.0
 

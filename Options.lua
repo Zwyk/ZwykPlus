@@ -10,10 +10,11 @@ local portraitWindow
 local healerManaWindow
 local healerManaChoices = {}
 local portraitSliders = {}
-local pageOrder = {"interface", "automation", "auras", "frames", "chat"}
+local pageOrder = {"interface", "automation", "auras", "frames", "travel", "chat"}
 local pageNames = {
     interface = L.categoryInterface, automation = L.categoryAutomation,
-    auras = L.categoryAuras, frames = L.categoryFrames, chat = L.categoryChat,
+    auras = L.categoryAuras, frames = L.categoryFrames,
+    travel = L.categoryTravel, chat = L.categoryChat,
 }
 
 local function Label(parent, text, x, y, width, font)
@@ -288,6 +289,22 @@ local function BuildPages()
     resetMana:SetSize(114, 24)
     resetMana:SetText(L.healerManaReset)
     resetMana:SetScript("OnClick", function() ZP:ResetHealerManaPosition() end)
+
+    page = pages.travel
+    Label(page, L.flightTimerTitle, 0, 0, 370, "GameFontNormal")
+    Checkbox(page, "flightTimer", L.flightTimerTitle, 0, -23, 355, nil, L.flightTimerHelp)
+    Label(page, L.flightTimerWaypointHelp, 28, -61, 365)
+    Label(page, L.flightTimerMoveHelp, 28, -128, 365)
+    local previewFlight = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    previewFlight:SetPoint("TOPLEFT", 28, -187)
+    previewFlight:SetSize(150, 24)
+    previewFlight:SetText(L.flightTimerPreview)
+    previewFlight:SetScript("OnClick", function() ZP:ShowFlightTimerPreview() end)
+    local resetFlight = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    resetFlight:SetPoint("TOPLEFT", 188, -187)
+    resetFlight:SetSize(150, 24)
+    resetFlight:SetText(L.flightTimerReset)
+    resetFlight:SetScript("OnClick", function() ZP:ResetFlightTimerPosition() end)
 
     page = pages.chat
     Label(page, L.chatGroup, 0, 0, 370, "GameFontNormal")

@@ -3,9 +3,9 @@
 ## Notes: Simple quality-of-life options for WoW Forever.
 ## Notes-frFR: Options pratiques pour WoW Forever.
 ## Author: Zwyk
-## Version: 1.9.0
-## SavedVariables: ZwykPlusDB
-## SavedVariablesPerCharacter: ZwykPlusNameplateState, ZwykPlusHealerManaState
+## Version: 1.10.0
+## SavedVariables: ZwykPlusDB, ZwykPlusFlightTimes
+## SavedVariablesPerCharacter: ZwykPlusNameplateState, ZwykPlusHealerManaState, ZwykPlusFlightState
 
 Locale.lua
 Core.lua
@@ -17,4 +17,6 @@ NameColors.lua
 BindingIcons.lua
 NameplateTargetEyes.lua
 HealerMana.lua
+FlightData.lua
+FlightTimer.lua
 Options.lua
