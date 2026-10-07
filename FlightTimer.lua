@@ -179,7 +179,25 @@ local function CreatePanel()
         edgeSize = 12, insets = {left = 3, right = 3, top = 3, bottom = 3}})
     frame:SetBackdropColor(0, 0, 0, 0.65)
     frame:SetBackdropBorderColor(0.55, 0.45, 0.2, 0.8)
-    frame.title = Label(frame, "TOPLEFT", 10, -10, 380)
+    frame.title = Label(frame, "TOPLEFT", 10, -10, 356)
+    frame.close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    frame.close:SetPoint("TOPRIGHT", -4, -3)
+    frame.close:SetSize(20, 20)
+    frame.close:SetScript("OnClick", function()
+        GameTooltip:Hide()
+        if flight and flight.preview then
+            Stop(false)
+        else
+            if flight then flight.dismissed = true end
+            frame:Hide()
+        end
+    end)
+    frame.close:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L.flightTimerClose, 1, 0.82, 0)
+        GameTooltip:Show()
+    end)
+    frame.close:SetScript("OnLeave", function() GameTooltip:Hide() end)
     frame.progress = CreateFrame("StatusBar", nil, frame)
     frame.progress:SetPoint("TOPLEFT", 10, -29)
     frame.progress:SetSize(380, 14)
@@ -287,7 +305,7 @@ end
 local function Render(now)
     local passed = math.max(0, now - flight.start)
     local count = #flight.stops
-    frame.title:SetText(flight.points[1].name .. " → " .. flight.points[#flight.points].name)
+    frame.title:SetText(flight.points[1].name .. " -> " .. flight.points[#flight.points].name)
     local left = not flight.requested and flight.total and (flight.total - passed) or nil
     frame.time:SetText(L.flightTimerRemaining .. ": " .. Format(left))
     frame.elapsedText:SetText(L.flightTimerElapsed .. ": " .. Format(passed))
@@ -379,7 +397,7 @@ Update = function()
             flight.learnable = false
         end
     end
-    Render(now)
+    if not flight.dismissed then Render(now) end
 end
 
 local function Taken(slot)
