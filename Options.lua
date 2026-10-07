@@ -7,9 +7,10 @@ local pageHeading
 local reloadNote
 local diagnosticsWindow, diagnosticsText, diagnosticsMeasure
 local portraitWindow
+local buffReminderWindow
 local healerManaWindow
 local healerManaChoices = {}
-local portraitSliders = {}
+local settingSliders = {}
 local pageOrder = {"interface", "automation", "auras", "frames", "travel", "chat"}
 local pageNames = {
     interface = L.categoryInterface, automation = L.categoryAutomation,
@@ -49,11 +50,13 @@ local function Checkbox(parent, key, text, x, y, width, dependency, help)
     return button
 end
 
-local function PortraitSlider(parent, key, text, y, minimum, maximum, step, help, low, high)
+local function SettingSlider(parent, key, text, y, minimum, maximum, step, help, low, high, format, dependency)
     local slider = CreateFrame("Slider", "ZwykPlus" .. key, parent, "OptionsSliderTemplate")
     slider:SetPoint("TOPLEFT", 30, y)
     slider:SetSize(360, 17)
     slider.key, slider.step = key, step
+    slider.format = format or (step < 1 and "%.1f%%" or "%d%%")
+    slider.dependency = dependency
     slider:SetMinMaxValues(minimum, maximum)
     slider:SetValueStep(step)
     if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
@@ -68,7 +71,7 @@ local function PortraitSlider(parent, key, text, y, minimum, maximum, step, help
     highLabel:SetJustifyH("RIGHT")
     slider:SetScript("OnValueChanged", function(self, value)
         value = math.floor(value / self.step + 0.5) * self.step
-        self.valueLabel:SetText(string.format(self.step < 1 and "%.1f%%" or "%d%%", value))
+        self.valueLabel:SetText(string.format(self.format, value))
         if not self.refreshing then ZP:SetOption(self.key, value) end
     end)
     slider:SetScript("OnEnter", function(self)
@@ -78,7 +81,7 @@ local function PortraitSlider(parent, key, text, y, minimum, maximum, step, help
         GameTooltip:Show()
     end)
     slider:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    portraitSliders[#portraitSliders + 1] = slider
+    settingSliders[#settingSliders + 1] = slider
     return slider
 end
 
@@ -102,9 +105,9 @@ function ZP:ShowPortraitOptions()
         panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
         Label(panel, L.portraitOptionsTitle, 24, -20, 340, "GameFontNormalLarge")
         Label(panel, L.portraitOptionsHelp, 24, -50, 372)
-        PortraitSlider(panel, "portraitModelSize", L.portraitModelSize, -112, 50, 100, 0.5,
+        SettingSlider(panel, "portraitModelSize", L.portraitModelSize, -112, 50, 100, 0.5,
             L.portraitModelSizeHelp, "50%", "100%")
-        PortraitSlider(panel, "portraitBackgroundTransparency", L.portraitBackgroundTransparency, -192, 0, 100, 1,
+        SettingSlider(panel, "portraitBackgroundTransparency", L.portraitBackgroundTransparency, -192, 0, 100, 1,
             L.portraitBackgroundTransparencyHelp, L.portraitBackgroundOpaque, L.portraitBackgroundTransparent)
         Checkbox(panel, "portraitClassBackground", L.portraitClassBackground, 24, -252, 340, nil, L.portraitClassBackgroundHelp)
         Label(panel, L.portraitOptionsSaved, 24, -299, 265)
@@ -121,6 +124,44 @@ function ZP:ShowPortraitOptions()
         portraitWindow = panel
     end
     portraitWindow:Show()
+end
+
+function ZP:ShowBuffReminderOptions()
+    if not self.db then self:InitializeDB() end
+    if not buffReminderWindow then
+        local panel = CreateFrame("Frame", "ZwykPlusBuffReminderOptions", UIParent, "BackdropTemplate")
+        panel:Hide()
+        panel:SetSize(420, 270)
+        panel:SetPoint("CENTER")
+        panel:SetFrameStrata("FULLSCREEN_DIALOG")
+        panel:SetClampedToScreen(true)
+        panel:EnableMouse(true)
+        panel:SetMovable(true)
+        panel:RegisterForDrag("LeftButton")
+        panel:SetScript("OnDragStart", panel.StartMoving)
+        panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+        panel:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
+        panel:SetBackdropColor(0.045, 0.04, 0.025, 1)
+        panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
+        Label(panel, L.buffReminderOptionsTitle, 24, -20, 340, "GameFontNormalLarge")
+        Label(panel, L.buffReminderOptionsHelp, 24, -50, 372)
+        SettingSlider(panel, "buffReminderSeconds", L.buffReminderSeconds, -120, 5, 120, 5,
+            L.buffReminderSecondsHelp, "5 s", "120 s", L.buffReminderSecondsFormat, "buffReminder")
+        Label(panel, L.buffReminderSupported, 24, -172, 372)
+        local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+        closeIcon:SetPoint("TOPRIGHT", -6, -6)
+        closeIcon:SetScript("OnClick", function() panel:Hide() end)
+        local close = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        close:SetPoint("BOTTOMRIGHT", -24, 15)
+        close:SetSize(90, 24)
+        close:SetText(L.close)
+        close:SetScript("OnClick", function() panel:Hide() end)
+        panel:SetScript("OnShow", function() ZP:RefreshOptions() end)
+        UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusBuffReminderOptions"
+        buffReminderWindow = panel
+    end
+    buffReminderWindow:Show()
 end
 
 function ZP:RefreshHealerManaMembers()
@@ -250,14 +291,22 @@ local function BuildPages()
     Checkbox(page, "herbs", L.herbs, 209, -65, 157, "autoTracking", L.trackingHelp)
     Checkbox(page, "fish", L.fish, 23, -96, 330, "autoTracking", L.trackingHelp)
     Label(page, L.trackingNote, 23, -142, 369)
+    Checkbox(page, "questObjectiveTarget", L.questObjectiveTarget, 0, -200, 355, nil, L.questObjectiveTargetHelp)
 
     page = pages.auras
     Label(page, L.tooltipGroup, 0, 0, 370, "GameFontNormal")
     Checkbox(page, "auraSource", L.compactAuras, 0, -23, 355, nil, L.auraSourceHelp)
     Label(page, L.auraColorHelp, 28, -56, 365)
-    Label(page, L.clickGroup, 0, -101, 370, "GameFontNormal")
-    Checkbox(page, "auraSourceTarget", L.compactAuraClick, 0, -124, 355, "auraSource", L.auraSourceTargetHelp)
-    Label(page, L.auraClickNote, 28, -164, 365)
+    Label(page, L.clickGroup, 0, -82, 370, "GameFontNormal")
+    Checkbox(page, "auraSourceTarget", L.compactAuraClick, 0, -105, 355, "auraSource", L.auraSourceTargetHelp)
+    Label(page, L.auraClickNote, 28, -139, 365)
+    Label(page, L.buffReminderGroup, 0, -179, 370, "GameFontNormal")
+    Checkbox(page, "buffReminder", L.buffReminder, 0, -202, 240, nil, L.buffReminderHelp)
+    local configureBuffs = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    configureBuffs:SetPoint("TOPLEFT", 279, -202)
+    configureBuffs:SetSize(114, 24)
+    configureBuffs:SetText(L.configure)
+    configureBuffs:SetScript("OnClick", function() ZP:ShowBuffReminderOptions() end)
 
     page = pages.frames
     Label(page, L.portraitsGroup, 0, 0, 370, "GameFontNormal")
@@ -323,10 +372,14 @@ function ZP:RefreshOptions()
         button:SetAlpha(enabled and 1 or 0.45)
         button.label:SetAlpha(enabled and 1 or 0.45)
     end
-    for _, slider in ipairs(portraitSliders) do
+    for _, slider in ipairs(settingSliders) do
         slider.refreshing = true
         slider:SetValue(self.db[slider.key])
-        slider.valueLabel:SetText(string.format(slider.step < 1 and "%.1f%%" or "%d%%", self.db[slider.key]))
+        slider.valueLabel:SetText(string.format(slider.format, self.db[slider.key]))
+        local enabled = not slider.dependency or self.db[slider.dependency]
+        slider:SetEnabled(enabled)
+        slider:SetAlpha(enabled and 1 or 0.45)
+        slider.valueLabel:SetAlpha(enabled and 1 or 0.45)
         slider.refreshing = false
     end
     if reloadNote then

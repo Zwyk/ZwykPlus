@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.10.0"
+ZP.version = "1.11.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -24,10 +24,14 @@ local defaults = {
     nameplateTargetEyes = false,
     healerMana = false,
     flightTimer = false,
+    questObjectiveTarget = false,
+    buffReminder = false,
+    buffReminderSeconds = 30,
 }
 local numericSettings = {
     portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
     portraitBackgroundTransparency = {minimum = 0, maximum = 100, step = 1},
+    buffReminderSeconds = {minimum = 5, maximum = 120, step = 5},
 }
 local function Readable(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -69,7 +73,7 @@ function ZP:InitializeDB()
         end
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
-    ZwykPlusDB.version = 13
+    ZwykPlusDB.version = 14
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -215,6 +219,8 @@ function ZP:SetOption(key, value)
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
     elseif key == "portraits3D" then
         -- Native portrait mode is applied on reload; the checkbox is saved now.
+    elseif key == "buffReminder" or key == "buffReminderSeconds" then
+        if self.RefreshBuffReminder then self:RefreshBuffReminder() end
     elseif numericSettings[key] or key == "portraitClassBackground" then
         if self.RefreshPortraits then self:RefreshPortraits(false) end
     elseif key == "frameClassColors" then
@@ -227,6 +233,8 @@ function ZP:SetOption(key, value)
         if self.RefreshHealerMana then self:RefreshHealerMana() end
     elseif key == "flightTimer" then
         if self.RefreshFlightTimer then self:RefreshFlightTimer() end
+    elseif key == "questObjectiveTarget" then
+        if self.RefreshQuestTarget then self:RefreshQuestTarget() end
     else
         self:ApplyTracking()
     end
@@ -244,6 +252,8 @@ function ZP:ApplyAll()
     if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
     if self.RefreshHealerMana then self:RefreshHealerMana() end
     if self.RefreshFlightTimer then self:RefreshFlightTimer() end
+    if self.RefreshQuestTarget then self:RefreshQuestTarget() end
+    if self.RefreshBuffReminder then self:RefreshBuffReminder() end
 end
 
 function ZP:ApplyFromOptions()
@@ -287,6 +297,8 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializeNameplateTargetEyes then ZP:InitializeNameplateTargetEyes() end
         if ZP.InitializeHealerMana then ZP:InitializeHealerMana() end
         if ZP.InitializeFlightTimer then ZP:InitializeFlightTimer() end
+        if ZP.InitializeQuestTarget then ZP:InitializeQuestTarget() end
+        if ZP.InitializeBuffReminder then ZP:InitializeBuffReminder() end
         if ZP.RegisterSettings then ZP:RegisterSettings() end
         CheckOldAddons()
         self:UnregisterEvent("PLAYER_LOGIN")

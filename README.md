@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.10.0**. Interface version: **16001**.
+Current version: **1.11.0**. Interface version: **16001**.
 
 ## Features
 
@@ -11,6 +11,8 @@ Current version: **1.10.0**. Interface version: **16001**.
 - Enable available mineral, herb and fish tracking on login when inactive.
 - Show the caster of a buff or debuff in its tooltip, with player names in their class color.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
+- Optionally left-click simple unfinished kill objectives in the native quest tracker to target the exact monster name outside combat.
+- Optionally highlight native spell buttons shortly before supported class buffs on the player expire, with a configurable warning threshold.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
@@ -20,7 +22,16 @@ Current version: **1.10.0**. Interface version: **16001**.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel.
+The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.11.0
+
+- Add **Automation → Click kill objectives to target**. Left-click compatible unfinished monster objectives in the native quest tracker to run `/targetexact` for their name. Simple English `X slain` and French kill-objective wording are supported. The click layer disappears in combat, and recycled/completed lines clear their old targeting association. Header actions and item objectives retain their native behavior. Targeting uses the game's normal range and name matching; it does not locate arbitrary units across the map.
+- Add **Auras → Highlight buffs before expiration → Configure**. A separate gold border highlights native spell buttons before a supported buff on the player expires. The warning threshold defaults to 30 seconds and can be set from 5 to 120 seconds. Refreshing or removing a buff clears the warning. Another player's buff also counts.
+- Initially support paladin blessings, priest Fortitude/Spirit, mage Intellect and druid Mark, with ranks and group versions. Match the buff family to the spell buttons; macros and third-party action bars are outside this first version. Unavailable aura identities or timing access are skipped. Secret countdowns use the client's supported duration-to-alpha display API; no protected duration is compared in addon Lua.
+- Questie-assisted item-to-monster targeting is deferred. Target aura countdowns are also deferred: no supported way was found to enable numbers directly on Forever's forbidden native target aura icons, and no replacement aura display is added.
+
+The new modules have focused regression checks for combat restrictions, recycled quest rows, buff refresh/removal, action changes and unavailable aura data. Visual appearance and restricted behavior still require confirmation in the Forever client.
 
 ## Changes in 1.10.0
 
