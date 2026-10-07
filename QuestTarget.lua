@@ -1,7 +1,10 @@
 local _, ZP = ...
 local events, queued
+local QueueRefresh
+local generation, recovering, combatActive = 0, false, false
 local records = setmetatable({}, {__mode = "k"})
 local hooked = setmetatable({}, {__mode = "k"})
+local shown = setmetatable({}, {__mode = "k"})
 
 local function Readable(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -160,6 +163,7 @@ local function Attach(block, line, key, name)
         end)
         button:SetScript("OnLeave", function() HideTooltip(button) end)
         line:HookScript("OnHide", function() Hide(record) end)
+        line:HookScript("OnShow", function() QueueRefresh() end)
     end
     record.block, record.questID, record.key, record.name = block, block.id, key, name
     record.button:SetAttribute("macrotext", "/targetexact " .. name)
@@ -168,13 +172,23 @@ local function Attach(block, line, key, name)
     record.seen = true
 end
 
-local function QueueRefresh()
-    if queued or not (ZP.db and ZP.db.questObjectiveTarget) then return end
+local function CancelRefresh()
+    generation = generation + 1
+    queued, recovering = nil, false
+end
+
+QueueRefresh = function()
+    if queued or combatActive or not (ZP.db and ZP.db.questObjectiveTarget) then return end
     if C_Timer and C_Timer.After then
+        local token = generation
         queued = true
-        C_Timer.After(0, function()
+        C_Timer.After(recovering and 0.1 or 0, function()
+            if token ~= generation then return end
             queued = false
             ZP:RefreshQuestTarget()
+            -- REGEN_ENABLED can precede the actual lockdown release. Retry only
+            -- during this handoff; disabling or entering combat invalidates it.
+            if recovering then QueueRefresh() end
         end)
     else
         ZP:RefreshQuestTarget()
@@ -184,7 +198,13 @@ end
 function ZP:RefreshQuestTarget()
     for _, record in pairs(records) do record.seen = false end
     local module = QuestObjectiveTracker
-    if self.db and self.db.questObjectiveTarget and not InCombat() and PublicFrame(module) then
+    local enabled, blocked = self.db and self.db.questObjectiveTarget, combatActive or InCombat()
+    if not enabled then CancelRefresh() end
+    if enabled and not blocked then recovering = false end
+    if enabled and not blocked and PublicFrame(module) then
+        if not shown[module] and module.HookScript then
+            shown[module] = pcall(module.HookScript, module, "OnShow", function() QueueRefresh() end)
+        end
         if not hooked[module] and hooksecurefunc and type(module.EndLayout) == "function" then
             hooked[module] = pcall(hooksecurefunc, module, "EndLayout", QueueRefresh)
         end
@@ -207,6 +227,7 @@ end
 
 function ZP:InitializeQuestTarget()
     if events then return end
+    combatActive = InCombat()
     events = CreateFrame("Frame")
     for _, event in ipairs({"ADDON_LOADED", "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE",
         "QUEST_WATCH_LIST_CHANGED", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED"}) do
@@ -214,7 +235,13 @@ function ZP:InitializeQuestTarget()
     end
     events:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_REGEN_DISABLED" then
+            combatActive = true
+            CancelRefresh()
             for _, record in pairs(records) do Hide(record) end
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            combatActive = false
+            recovering = ZP.db and ZP.db.questObjectiveTarget or false
+            QueueRefresh()
         else
             QueueRefresh()
         end

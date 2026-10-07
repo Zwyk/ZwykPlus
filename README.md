@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.11.1**. Interface version: **16001**.
+Current version: **1.12.0**. Interface version: **16001**.
 
 ## Features
 
@@ -23,6 +23,17 @@ Current version: **1.11.1**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.12.0
+
+- Restore quest objective clicks reliably after combat. The addon retries during the transition until combat lockdown has actually cleared, cancels stale callbacks when a new combat starts or the option is disabled, and refreshes when the native tracker or recycled rows become visible again.
+- Change buff reminders to a **remaining percentage of the buff's total duration**, from 5 to 100%, default 20%. For example, 20% means the final 6 seconds of a 30-second seal or the final minute of a 5-minute blessing. Existing enable choices are preserved; the old seconds setting is removed. Permanent buffs do not trigger an expiration reminder.
+- Expand Paladin support to **Seals of Fury, Righteousness, Command, Justice, Light, Wisdom and the Crusader**, **Righteous Fury**, **Blessings of Freedom, Protection and Sacrifice**, **Divine Protection**, **Divine Shield**, **Holy Shield** and **Templar's Bulwark**, in addition to existing blessings. Include Classic ranks and the new Forever Fury ranks. Reminders track buffs on the player; casting a blessing on another unit does not create a reminder for that unit.
+- Remove an unnecessary second action-slot check that could reject overridden or ranked spells. Use Blizzard's current paged action slot to match direct spell buttons. Native spell-proc glows remain independent; macros and third-party action bars remain outside the supported scope.
+- Keep the gold border for accessible aura data. Also configure a gold **!** on the native spell button through Blizzard's custom aura display API, with the client selecting the aura and applying the percentage threshold. This supports private aura display without inspecting hidden spell identities or comparing secret countdown values in addon Lua. Configuration changes that require setup in combat wait until combat ends.
+- Add **Preview** in the buff reminder configuration, or **/zp test buffs**, to show the gold border for five seconds without casting or changing the saved option. **Buff diagnostics**, or **/zp buffs**, prints mapped button counts, public timing availability and native renderer setup status in chat. The diagnostic does not inspect private aura state.
+
+Regression checks cover delayed combat release, tracker visibility, percentage thresholds, Paladin spell families, secret rendering sinks, native renderer configuration and preview cleanup. Actual native marker appearance still needs confirmation in the Forever client.
 
 ## Changes in 1.11.1
 
