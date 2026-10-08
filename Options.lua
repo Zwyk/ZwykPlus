@@ -131,7 +131,7 @@ function ZP:ShowBuffReminderOptions()
     if not buffReminderWindow then
         local panel = CreateFrame("Frame", "ZwykPlusBuffReminderOptions", UIParent, "BackdropTemplate")
         panel:Hide()
-        panel:SetSize(420, 320)
+        panel:SetSize(420, 460)
         panel:SetPoint("CENTER")
         panel:SetFrameStrata("FULLSCREEN_DIALOG")
         panel:SetClampedToScreen(true)
@@ -146,9 +146,12 @@ function ZP:ShowBuffReminderOptions()
         panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
         Label(panel, L.buffReminderOptionsTitle, 24, -20, 340, "GameFontNormalLarge")
         Label(panel, L.buffReminderOptionsHelp, 24, -50, 372)
-        SettingSlider(panel, "buffReminderPercent", L.buffReminderPercent, -120, 5, 100, 5,
+        SettingSlider(panel, "buffReminderPercent", L.buffReminderPercent, -132, 5, 100, 5,
             L.buffReminderPercentHelp, "5%", "100%", L.buffReminderPercentFormat, "buffReminder")
-        Label(panel, L.buffReminderSupported, 24, -172, 372)
+        SettingSlider(panel, "buffReminderAfterPercent", L.buffReminderAfterPercent, -212, 0, 100, 5,
+            L.buffReminderAfterPercentHelp, "0%", "100%", L.buffReminderPercentFormat, "buffReminder")
+        Label(panel, L.buffReminderSupported, 24, -264, 372)
+        Label(panel, L.buffReminderAfterLimit, 24, -354, 372)
         local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
         closeIcon:SetPoint("TOPRIGHT", -6, -6)
         closeIcon:SetScript("OnClick", function() panel:Hide() end)

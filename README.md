@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.12.0**. Interface version: **16001**.
+Current version: **1.13.0**. Interface version: **16001**.
 
 ## Features
 
@@ -23,6 +23,15 @@ Current version: **1.12.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.13.0
+
+- Add **After expiration** to buff reminder configuration, from 0 to 100% of the buff's total duration, default 20%. For a 30-second seal, 20% keeps the reminder for 6 seconds after its recorded expiration. Set 0% to disable continuation. A readable refresh replaces the timer; removal before expiration cancels it. Only buffs observed while active with readable duration and expiration can start this timer. Restricted or ambiguous aura data, disabling the feature, or removing its mapped spell buttons discards remembered timers.
+- Replace the fixed gold border with an **animated gold glow**, with a soft halo, pulsing edge and eight moving lights. Anchor the bright edge directly to the native spell icon's bounds, so a larger action button does not enlarge the outline. Create glow frames only for supported spell buttons, keep native proc effects independent, and animate only public candidate displays or the five-second preview.
+- Preserve the native gold **!** fallback for wholly private auras. Blizzard's native aura display ends when an aura disappears; no secret duration or visibility is read back to infer a post-expiration timer. Duration objects with accessible handles can still drive the public glow through the client's alpha display API.
+- Add the post-expiration percentage to **/zp buffs** diagnostics, update English/French help, and expand the configuration panel for both sliders. Existing settings remain preserved.
+
+Regression checks cover natural expiration, timer bounds, refreshing, early removal, disabled continuation, inaccessible timing, mapping changes, icon alignment, animated lights in combat and native private display isolation. Actual glow appearance still needs confirmation in the Forever client.
 
 ## Changes in 1.12.0
 

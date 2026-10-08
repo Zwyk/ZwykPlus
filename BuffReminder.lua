@@ -1,6 +1,7 @@
 local _, ZP = ...
 local events, queued, curve, colorCurve, threshold, previewUntil, buildPending
-local buttons, records = {}, {}
+local buttons, records, mappedFamilies = {}, {}, {}
+local expiryHistory, historyValidated, auraChangedAt = {}, false, nil
 local elapsed, scanElapsed = 0, 0
 local scanStatus = "disabled"
 
@@ -56,6 +57,11 @@ local function Enabled()
     return Readable(value) and value == true
 end
 
+local function AfterFraction()
+    local value = ZP.db and ZP.db.buffReminderAfterPercent
+    return (Number(value) and math.max(0, math.min(100, value)) or 20) / 100
+end
+
 local function InCombat()
     if not InCombatLockdown then return false end
     local ok, value = pcall(InCombatLockdown)
@@ -72,10 +78,90 @@ local function PublicButton(button)
     return type(button.CreateTexture) == "function"
 end
 
-local function Clear()
+local function CreateGlow(button)
+    local icon = button.icon
+    if Readable(icon) and icon == nil then icon = button.Icon end
+    if not Readable(icon) or not icon or type(icon.GetObjectType) ~= "function" then icon = button end
+    -- The independent alpha gate may receive an opaque curve result. Only
+    -- its child lights animate; no animation reads or overrides that alpha.
+    local glow = CreateFrame("Frame", nil, UIParent)
+    glow:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
+    glow:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
+    glow:SetFrameLevel(button:GetFrameLevel() + 8)
+    glow:SetFrameStrata(button:GetFrameStrata())
+    glow:EnableMouse(false)
+    glow:SetAlpha(0)
+    glow:Hide()
+    local edges, lights = {}, {}
+    local function Texture(alpha, white)
+        local texture = glow:CreateTexture(nil, "OVERLAY")
+        texture:SetTexture("Interface\\Buttons\\WHITE8x8")
+        texture:SetBlendMode("ADD")
+        texture:SetVertexColor(1, white and 0.96 or 0.78, white and 0.65 or 0.12)
+        texture:SetAlpha(alpha)
+        return texture
+    end
+    for _, layer in ipairs({{8, 0.035}, {5, 0.09}, {3, 0.2}, {1, 0.7}}) do
+        local thickness, alpha = layer[1], layer[2]
+        for _, side in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
+            local texture = Texture(alpha)
+            if side == "TOP" or side == "BOTTOM" then
+                local offset = side == "TOP" and thickness / 2 or -thickness / 2
+                texture:SetPoint(side .. "LEFT", glow, side .. "LEFT", -thickness / 2, offset)
+                texture:SetPoint(side .. "RIGHT", glow, side .. "RIGHT", thickness / 2, offset)
+                texture:SetHeight(thickness)
+            else
+                local offset = side == "LEFT" and -thickness / 2 or thickness / 2
+                texture:SetPoint("TOP" .. side, glow, "TOP" .. side, offset, thickness / 2)
+                texture:SetPoint("BOTTOM" .. side, glow, "BOTTOM" .. side, offset, -thickness / 2)
+                texture:SetWidth(thickness)
+            end
+            edges[#edges + 1] = {texture = texture, alpha = alpha}
+        end
+    end
+    for i = 1, 8 do
+        local light = {}
+        for _, layer in ipairs({{7, 0.12}, {3.5, 0.6}, {1.5, 0.95}}) do
+            local texture = Texture(layer[2], layer[1] == 1.5)
+            texture:SetSize(layer[1], layer[1])
+            light[#light + 1] = {texture = texture, alpha = layer[2]}
+        end
+        lights[i] = light
+    end
+    local clock, animationElapsed = 0, 0
+    glow:SetScript("OnUpdate", function(self, delta)
+        clock, animationElapsed = clock + delta, animationElapsed + delta
+        if animationElapsed < 0.03 then return end
+        animationElapsed = 0
+        local width, height = self:GetWidth(), self:GetHeight()
+        if not Number(width) or not Number(height) or width <= 0 or height <= 0 then return end
+        local perimeter = 2 * (width + height)
+        local pulse = 0.8 + 0.2 * math.sin(clock * 4)
+        for _, edge in ipairs(edges) do edge.texture:SetAlpha(edge.alpha * pulse) end
+        for i, light in ipairs(lights) do
+            local distance = ((clock / 2.4 + (i - 1) / #lights) % 1) * perimeter
+            local x, y
+            if distance < width then x, y = distance, 0
+            elseif distance < width + height then x, y = width, distance - width
+            elseif distance < 2 * width + height then x, y = 2 * width + height - distance, height
+            else x, y = 0, perimeter - distance end
+            local shimmer = 0.7 + 0.3 * math.sin(clock * 7 + i)
+            for _, layer in ipairs(light) do
+                layer.texture:SetPoint("CENTER", self, "BOTTOMLEFT", x, y)
+                layer.texture:SetAlpha(layer.alpha * shimmer)
+            end
+        end
+    end)
+    return glow
+end
+
+local function Clear(discardHistory)
     records = {}
+    historyValidated = false
+    if discardHistory then expiryHistory, auraChangedAt = {}, nil end
     for _, entry in pairs(buttons) do
         pcall(entry.texture.SetAlpha, entry.texture, 0)
+        pcall(entry.texture.Hide, entry.texture)
         if entry.wrapper then pcall(entry.wrapper.Hide, entry.wrapper) end
     end
 end
@@ -223,54 +309,59 @@ local function BuildButtons()
             local button = _G[prefix .. i]
             if PublicButton(button) then
                 local entry = buttons[button]
-                if not entry and not InCombat() then
-                    local ok, texture = pcall(function()
-                        local t = button:CreateTexture(nil, "OVERLAY", nil, 7)
-                        t:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-                        t:SetBlendMode("ADD")
-                        t:SetPoint("TOPLEFT", button, "TOPLEFT", -7, 7)
-                        t:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 7, -7)
-                        t:SetVertexColor(1, 0.82, 0.15, 1)
-                        t:SetAlpha(0)
-                        return t
-                    end)
+                local slot, family = ActionSlot(button), nil
+                if Number(slot) and GetActionInfo then
+                    local ok, kind, id = pcall(GetActionInfo, slot)
+                    if ok and Readable(kind) and kind == "spell" and Number(id) then family = spellFamilies[id] end
+                end
+                if not entry and family and not InCombat() then
+                    local ok, texture = pcall(CreateGlow, button)
                     if ok and Readable(texture) and texture then
                         entry = {texture = texture}
                         buttons[button] = entry
                     end
                 end
-                local slot = ActionSlot(button)
-                if entry and Number(slot) and GetActionInfo then
-                    local ok, kind, id = pcall(GetActionInfo, slot)
-                    if ok and Readable(kind) and kind == "spell" and Number(id) then
-                        local family = spellFamilies[id]
-                        if family then entry.family = family end
-                    end
-                end
                 if entry then
+                    entry.family = family
                     if Enabled() then ConfigureNative(button, entry)
                     else entry.nativeReady = false end
                 end
             end
         end
     end
+    mappedFamilies = {}
+    for _, entry in pairs(buttons) do
+        if entry.family then mappedFamilies[entry.family] = true end
+    end
+    for family in pairs(expiryHistory) do
+        if not mappedFamilies[family] then expiryHistory[family] = nil end
+    end
 end
 
 local function ScanAuras()
     records = {}
+    historyValidated = false
+    local changedAt = auraChangedAt
+    auraChangedAt = nil
     scanStatus = "unavailable"
     local api = C_UnitAuras
-    if not api or not api.GetAuraDataByIndex then return end
+    if not api or not api.GetAuraDataByIndex then expiryHistory = {}; return end
     scanStatus = "ok"
-    local duplicate = {}
+    local duplicate, seen, identityBlocked, complete = {}, {}, false, false
+    local now, after = GetTime(), AfterFraction()
+    if after == 0 then expiryHistory = {} end
     for i = 1, 255 do
         local ok, aura = pcall(api.GetAuraDataByIndex, "player", i, "HELPFUL")
-        if not ok or not Readable(aura) then records = {}; scanStatus = "blocked"; return end
-        if aura == nil then break end
+        if not ok or not Readable(aura) then
+            records, expiryHistory = {}, {}; scanStatus = "blocked"; return
+        end
+        if aura == nil then complete = true; break end
         if type(aura) == "table" then
             local id = aura.spellId
+            if not Number(id) then identityBlocked = true end
             local family = Number(id) and spellFamilies[id]
             if family then
+                seen[family] = true
                 if records[family] then duplicate[family] = true end
                 local record = {spellID = id}
                 local instance = aura.auraInstanceID
@@ -281,18 +372,52 @@ local function ScanAuras()
                         record.duration = duration
                     end
                 end
-                if not record.duration then
-                    local duration, expires = aura.duration, aura.expirationTime
-                    if Number(duration) and duration > 0 and Number(expires) and expires > 0 then
-                        record.expires, record.total = expires, duration
+                -- A duration handle may contain private timing. Only these
+                -- independently readable numbers can arm a post-expiry timer.
+                local total, expires = aura.duration, aura.expirationTime
+                if Number(total) and total > 0 and Number(expires) and expires > 0 then
+                    record.expires, record.total = expires, total
+                    local previous = expiryHistory[family]
+                    if mappedFamilies[family] and after > 0 and expires > now then
+                        expiryHistory[family] = {expires = expires, total = total}
+                    elseif not previous or previous.expires ~= expires or previous.total ~= total then
+                        expiryHistory[family] = nil
                     end
+                else
+                    expiryHistory[family] = nil
                 end
                 records[family] = record
             end
+        else
+            identityBlocked = true
         end
     end
     -- Do not guess which of multiple simultaneous ranks is the effective buff.
-    for family in pairs(duplicate) do records[family] = nil end
+    for family in pairs(duplicate) do records[family], expiryHistory[family] = nil, nil end
+    if identityBlocked or not complete then
+        -- An unknown identity could be a refresh of a remembered family. Do
+        -- not infer absence or keep a cached timer through restricted data.
+        expiryHistory = {}
+        return
+    end
+    for family, history in pairs(expiryHistory) do
+        local finish = history.expires + history.total * after
+        -- The queued scan can straddle expiry. A removal already observed
+        -- before expiry must not turn into a natural-expiration reminder.
+        if (not seen[family] and (changedAt or now) < history.expires)
+            or not Number(finish) or now >= finish then
+            expiryHistory[family] = nil
+        end
+    end
+    historyValidated = true
+end
+
+local function AfterExpiry(family, now)
+    if not historyValidated then return false end
+    local history = family and expiryHistory[family]
+    local after = AfterFraction()
+    return history and after > 0 and now >= history.expires
+        and now < history.expires + history.total * after or false
 end
 
 local function Render()
@@ -300,10 +425,21 @@ local function Render()
     local preview = previewUntil and now < previewUntil
     for button, entry in pairs(buttons) do
         local record = entry.family and records[entry.family]
+        local public, visible = PublicButton(button), false
+        if public and type(button.IsVisible) == "function" then
+            local shown, value = pcall(button.IsVisible, button)
+            visible = shown and Readable(value) and value == true
+        end
+        local after = Enabled() and AfterExpiry(entry.family, now)
+        -- Visibility is public configuration/button state, never curve alpha.
+        pcall(entry.texture.SetShown, entry.texture,
+            ((preview and entry.family) or (Enabled() and record) or after) and public and visible or false)
         local ok = false
-        if preview and entry.family and PublicButton(button) then
+        if preview and entry.family and public then
             ok = pcall(entry.texture.SetAlpha, entry.texture, 1)
-        elseif Enabled() and record and PublicButton(button) then
+        elseif public and after then
+            ok = pcall(entry.texture.SetAlpha, entry.texture, 1)
+        elseif Enabled() and record and public then
             if record.duration and curve then
                 local evaluated, alpha = pcall(record.duration.EvaluateRemainingPercent, record.duration, curve)
                 -- The curve output may be secret. Pass it only to the rendering
@@ -317,15 +453,10 @@ local function Render()
         end
         if not ok then pcall(entry.texture.SetAlpha, entry.texture, 0) end
         if entry.wrapper then
-            local visible = false
-            if type(button.IsVisible) == "function" then
-                local shown, value = pcall(button.IsVisible, button)
-                visible = shown and Readable(value) and value == true
-            end
             -- This visibility follows only public button/configuration state.
             -- The native binding alone decides when a private aura's ! appears.
             pcall(entry.wrapper.SetShown, entry.wrapper,
-                not preview and Enabled() and entry.nativeReady and visible or false)
+                not preview and Enabled() and entry.family and public and entry.nativeReady and visible or false)
         end
     end
 end
@@ -336,7 +467,7 @@ local function StartTicker()
         if elapsed < 0.2 then return end
         elapsed = 0
         if previewUntil and GetTime() >= previewUntil then previewUntil = nil end
-        if not Enabled() and not previewUntil then Clear(); events:SetScript("OnUpdate", nil); return end
+        if not Enabled() and not previewUntil then Clear(true); events:SetScript("OnUpdate", nil); return end
         if Enabled() and scanElapsed >= 1 then
             scanElapsed = 0
             if buildPending and not InCombat() then BuildButtons() end
@@ -352,6 +483,7 @@ function ZP:RefreshBuffReminder(preservePreview)
     Clear()
     elapsed, scanElapsed = 0, 0
     if not Enabled() then
+        expiryHistory, auraChangedAt = {}, nil
         scanStatus = "disabled"
         for _, entry in pairs(buttons) do
             if entry.container then pcall(entry.container.SetEnabled, entry.container, false) end
@@ -390,7 +522,8 @@ function ZP:ShowBuffReminderPreview()
 end
 
 function ZP:GetBuffReminderDiagnostics()
-    local result = {enabled = Enabled(), percent = (threshold or 0.2) * 100, mappedButtons = 0,
+    local result = {enabled = Enabled(), percent = (threshold or 0.2) * 100,
+        afterPercent = AfterFraction() * 100, mappedButtons = 0,
         publicAuras = 0, timingAvailable = 0, status = scanStatus, publicScanStatus = scanStatus, engineConfigured = 0,
         enginePending = 0, engineFailed = 0, previewActive = previewUntil ~= nil}
     for _, entry in pairs(buttons) do
@@ -424,12 +557,17 @@ function ZP:InitializeBuffReminder()
         "UPDATE_BONUS_ACTIONBAR", "UPDATE_VEHICLE_ACTIONBAR", "UPDATE_OVERRIDE_ACTIONBAR",
         "SPELLS_CHANGED", "ADDON_LOADED"}) do events:RegisterEvent(event) end
     events:SetScript("OnEvent", function(_, event)
+        if event == "UNIT_AURA" then
+            local changedAt = GetTime()
+            auraChangedAt = auraChangedAt and math.min(auraChangedAt, changedAt) or changedAt
+        end
         if event == "ADDON_LOADED" then
             for _, entry in pairs(buttons) do entry.nativeFailed = nil end
         end
         -- Immediately discard old access/state at transitions before coalescing
         -- scans, including UNIT_AURA events whose payload is restricted.
-        Clear()
+        Clear(event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_REGEN_DISABLED"
+            or event == "ENCOUNTER_START" or event == "ENCOUNTER_END")
         QueueRefresh()
     end)
     self:RefreshBuffReminder()

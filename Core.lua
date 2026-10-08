@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.12.0"
+ZP.version = "1.13.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -27,11 +27,13 @@ local defaults = {
     questObjectiveTarget = false,
     buffReminder = false,
     buffReminderPercent = 20,
+    buffReminderAfterPercent = 20,
 }
 local numericSettings = {
     portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
     portraitBackgroundTransparency = {minimum = 0, maximum = 100, step = 1},
     buffReminderPercent = {minimum = 5, maximum = 100, step = 5},
+    buffReminderAfterPercent = {minimum = 0, maximum = 100, step = 5},
 }
 local function Readable(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -74,7 +76,7 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 15
+    ZwykPlusDB.version = 16
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -220,7 +222,7 @@ function ZP:SetOption(key, value)
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
     elseif key == "portraits3D" then
         -- Native portrait mode is applied on reload; the checkbox is saved now.
-    elseif key == "buffReminder" or key == "buffReminderPercent" then
+    elseif key == "buffReminder" or key == "buffReminderPercent" or key == "buffReminderAfterPercent" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder() end
     elseif numericSettings[key] or key == "portraitClassBackground" then
         if self.RefreshPortraits then self:RefreshPortraits(false) end
@@ -319,7 +321,8 @@ function ZP:ShowBuffReminderDiagnostics()
     local report = self.GetBuffReminderDiagnostics and self:GetBuffReminderDiagnostics()
     print("|cffffcc66ZwykPlus " .. self.version .. " - " .. L.buffReminderDiagnostics .. "|r")
     if not report then print(L.buffReminderUnavailable); return end
-    print(string.format(L.buffReminderDiagnosticSettings, report.enabled and L.yes or L.no, report.percent or 20))
+    print(string.format(L.buffReminderDiagnosticSettings, report.enabled and L.yes or L.no,
+        report.percent or 20, report.afterPercent or 20))
     print(string.format(L.buffReminderDiagnosticButtons, report.mappedButtons or 0))
     print(string.format(L.buffReminderDiagnosticAuras, report.publicAuras or 0, report.timingAvailable or 0,
         report.publicScanStatus or "?"))
