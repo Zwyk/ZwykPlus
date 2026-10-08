@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.16.0**. Interface version: **16001**.
+Current version: **1.17.0**. Interface version: **16001**.
 
 ## Features
 
@@ -10,6 +10,7 @@ Current version: **1.16.0**. Interface version: **16001**.
 - Increase the maximum camera distance, with optional full zoom out on login.
 - Enable available mineral, herb and fish tracking on login when inactive.
 - Show the caster of a buff or debuff in its tooltip, with player names in their class color.
+- Add estimated spell DPS/HPS and damage/healing per resource cost to supported native spell tooltips, with periodic and AoE comparisons.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
 - Show the rested XP reserve, as an amount and percentage of a level, on the native XP bar and its tooltip.
 - Show average XP/hour, the rate without earned rested bonus, and estimated time to level on the native XP bar, with a click-to-reset confirmation.
@@ -25,6 +26,19 @@ Current version: **1.16.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.17.0
+
+- Add **Auras → Spell DPS/HPS and efficiency**, enabled by default. Supported English/French spell tooltips show total damage/healing, output per cast, and damage/healing per point of mana, energy, rage or another named resource. Amount ranges use their average. These are estimates from the displayed tooltip, without adding Classic spell coefficients or spell power a second time; crits, misses, armor, resistances, overhealing and cooldowns are excluded.
+- For DoTs/HoTs, show **Effective DPS/HPS (duration)** and **DPS/HPS (cast/GCD)** separately. For example, 120 damage over 12 seconds with a 3-second cast is 10 effective DPS and 40 DPS per cast time. Combined direct/periodic effects include both amounts, while each damage/healing rate uses its own effect duration. Channels use the full recognized channel duration. Instant casts use the client's available base GCD or an explicitly displayed 1.5-second reference; this is not a claim about real-time haste-adjusted rotational throughput. Off-GCD or unavailable timing keeps totals/efficiency and omits the undefined rate.
+- For explicit AoE effects, display **1 target** and **4 targets** in two columns. The resource cost is paid once for the cast; four-target efficiency uses four targets' output divided by that same cost. An explicit smaller target cap limits the total and is shown in the column heading. Effects with chain falloff, shared damage, or mixed self/single/area scopes are omitted.
+- Read the native spell-description lines when available, so those values take priority over a separate description getter. Support the native spellbook, spell action buttons and spell links, with guarded legacy setters. Resource efficiency uses public fixed current costs; variable, per-second, unavailable and inactive conditional costs are handled without inventing a flat mana/energy/rage amount. Unsupported weapon-percentage, reactive/proc, absorb, percentage-based, resource-restoration, delayed or otherwise ambiguous descriptions receive no calculation.
+- Preserve native content and other addons' tooltip rows. Repeated native builds add one calculation block, live toggles rebuild through the original getter, and shown spell tooltips refresh after gear/spell/player-aura/haste updates with a coalesced callback. Parsed text is cached with a bounded size; no spellbook-wide scan or per-frame calculation is added.
+- Include **SpellMetrics.lua** and **SpellTooltips.lua** when updating, then `/reload`. Existing preferences are preserved.
+
+Validation covers 90 EN/FR parsing fixtures, direct/periodic/channel math, target caps, multi-resource and conditional costs, private data, duplicate hooks, live toggles, tooltip ownership, current description updates, delayed spell loading and coalesced refreshes. The English/French Auras page fits the existing window. Actual in-game descriptions and tooltip appearance still need a client check; unfamiliar wording is deliberately skipped.
+
+The implementation was checked against Forever's [spell API](https://github.com/Gethe/wow-ui-source/blob/15666a6e67938a1ab5caf041406464251db111ca/Interface/AddOns/Blizzard_APIDocumentationGenerated/SpellDocumentation.lua), [resource-cost structure](https://github.com/Gethe/wow-ui-source/blob/15666a6e67938a1ab5caf041406464251db111ca/Interface/AddOns/Blizzard_APIDocumentationGenerated/SpellSharedDocumentation.lua), [spellbook API](https://github.com/Gethe/wow-ui-source/blob/15666a6e67938a1ab5caf041406464251db111ca/Interface/AddOns/Blizzard_APIDocumentationGenerated/SpellBookDocumentation.lua) and [tooltip processor](https://github.com/Gethe/wow-ui-source/blob/15666a6e67938a1ab5caf041406464251db111ca/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua). These APIs expose cast/cost information and rendered text, with no public numeric damage/healing effect structure.
 
 ## Changes in 1.16.0
 

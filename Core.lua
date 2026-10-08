@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.16.0"
+ZP.version = "1.17.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -12,6 +12,7 @@ local defaults = {
     fish = true,
     auraSource = true,
     auraSourceTarget = true,
+    spellTooltipMetrics = true,
     chatItemIcons = true,
     chatClassIcons = true,
     chatRaceIcons = true,
@@ -109,7 +110,7 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 19
+    ZwykPlusDB.version = 20
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -264,6 +265,8 @@ function ZP:SetOption(key, value)
         if self.RefreshChatIcons then self:RefreshChatIcons() end
     elseif key == "auraSource" or key == "auraSourceTarget" then
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
+    elseif key == "spellTooltipMetrics" then
+        if self.RefreshSpellTooltips then self:RefreshSpellTooltips() end
     elseif key == "portraits3D" then
         -- Native portrait mode is applied on reload; the checkbox is saved now.
     elseif key == "buffReminderBeforeGlow" or key == "buffReminderAfterGlow" or key == "buffReminderColor"
@@ -302,6 +305,7 @@ function ZP:ApplyAll()
     self:ApplyCamera(self.db.zoomOnLogin)
     self:ApplyTracking()
     if self.RefreshChatIcons then self:RefreshChatIcons() end
+    if self.RefreshSpellTooltips then self:RefreshSpellTooltips() end
     if self.RefreshPortraits then self:RefreshPortraits(false) end
     if self.RefreshNameColors then self:RefreshNameColors() end
     if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
@@ -348,6 +352,7 @@ events:SetScript("OnEvent", function(self, event, name)
         ZP:ApplyErrors()
         if ZP.InitializeAuraTooltips then ZP:InitializeAuraTooltips() end
         if ZP.InitializeAuraSourceTarget then ZP:InitializeAuraSourceTarget() end
+        if ZP.InitializeSpellTooltips then ZP:InitializeSpellTooltips() end
         if ZP.InitializeChatIcons then ZP:InitializeChatIcons() end
         if ZP.InitializePortraits then ZP:InitializePortraits() end
         if ZP.InitializeNameColors then ZP:InitializeNameColors() end

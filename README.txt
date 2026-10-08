@@ -1,4 +1,4 @@
-ZwykPlus 1.16.0 - WoW Forever
+ZwykPlus 1.17.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,31 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITIONS IN 1.17.0
+Auras > Spell DPS/HPS and efficiency starts enabled. Supported EN/FR native
+spell tooltips show averaged damage/healing amounts, output per cast/GCD,
+and damage/healing per point of a fixed current resource cost. DoTs/HoTs
+also show effective DPS/HPS over their duration. Channels use their full
+recognized duration; instant casts use the displayed base-GCD/reference.
+A 120-damage DoT lasting 12 seconds with a 3-second cast has 10 effective
+DPS and 40 DPS per cast time. Instant fallback uses a stated 1.5s reference,
+not a promise of real-time haste-adjusted rotational throughput.
+
+Explicit AoE effects have 1-target and 4-target columns. The cast cost stays
+the same; explicit smaller target caps limit the four-target total.
+Calculations use the displayed tooltip, with no extra Classic coefficients.
+Crits, misses, armor/resistance, overhealing and cooldowns are excluded.
+Ambiguous, conditional/proc, weapon/percentage, absorb, delayed, resource-
+restoration and mixed-target effects are omitted. Variable/per-second or
+unavailable costs omit resource efficiency. Private data stays unread.
+
+Spellbook, spell actions and spell links use native tooltip processing.
+Visible tooltips refresh after spell/gear/player-aura/haste changes with a
+coalesced callback; repeated builds add one block and preserve native/other
+addon content. Include SpellMetrics.lua and SpellTooltips.lua, then /reload.
+Ninety parser fixtures, runtime/integration and EN/FR layout checks pass;
+actual client wording and appearance still need an in-game check.
 
 ADDITIONS IN 1.16.0
 Interface > Items and experience > XP/hour and time to level starts enabled.
