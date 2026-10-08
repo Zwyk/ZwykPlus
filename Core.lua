@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.15.0"
+ZP.version = "1.16.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -22,6 +22,7 @@ local defaults = {
     frameClassColors = false,
     itemBindingIcons = false,
     restedXP = true,
+    xpStats = true,
     nameplateTargetEyes = false,
     healerMana = false,
     flightTimer = false,
@@ -108,7 +109,7 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 18
+    ZwykPlusDB.version = 19
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -275,6 +276,9 @@ function ZP:SetOption(key, value)
         if self.RefreshQuestTarget then self:RefreshQuestTarget() end
     elseif key == "restedXP" then
         if self.RefreshRestedXP then self:RefreshRestedXP() end
+    elseif key == "xpStats" then
+        if self.RefreshXPStats then self:RefreshXPStats() end
+        if self.RefreshRestedXP then self:RefreshRestedXP() end
     elseif numericSettings[key] or key == "portraitClassBackground" then
         if self.RefreshPortraits then self:RefreshPortraits(false) end
     elseif key == "frameClassColors" then
@@ -301,6 +305,7 @@ function ZP:ApplyAll()
     if self.RefreshPortraits then self:RefreshPortraits(false) end
     if self.RefreshNameColors then self:RefreshNameColors() end
     if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
+    if self.RefreshXPStats then self:RefreshXPStats() end
     if self.RefreshRestedXP then self:RefreshRestedXP() end
     if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
     if self.RefreshHealerMana then self:RefreshHealerMana() end
@@ -348,6 +353,7 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializeNameColors then ZP:InitializeNameColors() end
         if ZP.InitializeItemBindingIcons then ZP:InitializeItemBindingIcons() end
         if ZP.InitializeRestedXP then ZP:InitializeRestedXP() end
+        if ZP.InitializeXPStats then ZP:InitializeXPStats() end
         if ZP.InitializeNameplateTargetEyes then ZP:InitializeNameplateTargetEyes() end
         if ZP.InitializeHealerMana then ZP:InitializeHealerMana() end
         if ZP.InitializeFlightTimer then ZP:InitializeFlightTimer() end

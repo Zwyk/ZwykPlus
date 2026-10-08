@@ -1,4 +1,4 @@
-ZwykPlus 1.15.0 - WoW Forever
+ZwykPlus 1.16.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -10,9 +10,33 @@ INSTALL
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
 
+ADDITIONS IN 1.16.0
+Interface > Items and experience > XP/hour and time to level starts enabled.
+The native XP bar shows average earned XP/hour, the rate without observed
+rested bonus, and estimated time to level. The tooltip adds elapsed time,
+XP gained and rested bonus gained. Other XP bonuses remain included.
+Left-click the XP bar or its rested tick for a Reset / Cancel confirmation.
+Statistics persist per character across reloads and normal logouts. Time is
+counted only while online, including idle time. Recording continues while
+the display option is off.
+
+The estimate uses your observed mix of mob and other XP and considers the
+remaining rested reserve running out before the next level. It assumes that
+your recent pace continues; quest XP is not doubled. Localized combat XP
+messages identify rested bonus. Verified quest rewards explain other gains
+without counting the same unnamed XP message twice. Unknown or restricted
+information displays -- for the affected rate or estimate; incomplete XP
+accounting requires a reset. The native rested threshold remains the value
+shown by the reserve display; the estimate initially converts that doubled
+XP span to bonus capacity by dividing by two.
+
+Include XPStats.lua and the updated TOC when installing, then /reload.
+Runtime, native bar integration and EN/FR settings layout checks pass.
+Client rendering and actual XP messages still need an in-game check.
+
 ADDITIONS IN 1.15.0
 Rested XP reserve (Interface > Items and experience) is enabled by default.
-The native XP bar and tooltip show the bonus XP pool and its percentage of
+The native XP bar and tooltip show the native rested XP threshold and its percentage of
 one complete current level; the percentage can exceed 100%. This is separate
 from the native tooltip's 200% XP earning rate. Turning it off restores the
 native text. Unavailable, maximum-level or XP-disabled data is skipped.

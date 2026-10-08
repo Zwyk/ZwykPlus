@@ -57,9 +57,21 @@ end
 
 local function Label(tooltip)
     local amount, percent = Amount()
-    if not amount then return end
     local key = tooltip and "restedXPTooltipFormat" or "restedXPBarFormat"
-    return string.format(L[key], amount, percent)
+    local rest = amount and string.format(L[key], amount, percent)
+    if tooltip then return rest end
+    local stats = ZP.XPStatsBarLabel and ZP:XPStatsBarLabel()
+    if rest and stats then return rest .. "  |  " .. stats end
+    return rest or stats
+end
+
+local function TooltipLabels()
+    local labels, rest = {}, Label(true)
+    if rest then labels[#labels + 1] = rest end
+    if ZP.XPStatsTooltipLines then
+        for _, text in ipairs(ZP:XPStatsTooltipLines()) do labels[#labels + 1] = text end
+    end
+    return labels
 end
 
 local function ApplyText(entry)
@@ -91,21 +103,33 @@ local function AppropriateTooltip()
     if Public(GameTooltip) then return GameTooltip end
 end
 
-local function AddTooltip(tick)
-    if rebuilding then return end
-    local text, tooltip = Label(true), AppropriateTooltip()
-    if not text or not tooltip or type(tooltip.AddLine) ~= "function" then return end
-    local entry = tooltips[tooltip]
-    if entry and entry.index then
-        local line = TooltipLine(tooltip, entry.index)
+local function OwnedTooltip(tooltip, entry)
+    if not entry or not entry.index or not entry.owned then return false end
+    for index, text in ipairs(entry.owned) do
+        local line = TooltipLine(tooltip, entry.index + index - 1)
         local current, accessible
         if line then current, accessible = Call(line.GetText, line) end
-        if accessible and current == entry.owned then
-            line:SetText(text)
-            entry.owned = text
+        if not accessible or current ~= text then return false end
+    end
+    return true
+end
+
+local function UpdateTooltip(tooltip, entry, labels)
+    for index, text in ipairs(labels) do TooltipLine(tooltip, entry.index + index - 1):SetText(text) end
+    entry.owned = labels
+end
+
+local function AddTooltip(tick)
+    if rebuilding then return end
+    local labels, tooltip = TooltipLabels(), AppropriateTooltip()
+    if not tooltip or type(tooltip.AddLine) ~= "function" then return end
+    local entry = tooltips[tooltip]
+    if OwnedTooltip(tooltip, entry) then
+        if #entry.owned == #labels then
+            UpdateTooltip(tooltip, entry, labels)
             tooltip:Show()
-            return
         end
+        return
     end
     if not entry then
         entry = {}
@@ -114,38 +138,42 @@ local function AddTooltip(tick)
             tooltip:HookScript("OnTooltipCleared", function() entry.index, entry.owned, entry.tick = nil, nil, nil end)
         end
     end
-    tooltip:AddLine(text, 0.35, 0.7, 1, true)
+    entry.tick = tick
+    if #labels == 0 then return end
+    for _, text in ipairs(labels) do tooltip:AddLine(text, 0.35, 0.7, 1, true) end
     local count, accessible = Call(tooltip.NumLines, tooltip)
-    entry.index = accessible and Number(count) and count or nil
-    entry.owned, entry.tick = text, tick
+    entry.index = accessible and Number(count) and count - #labels + 1 or nil
+    entry.owned, entry.tick = labels, tick
     tooltip:Show()
 end
 
 local function RefreshTooltips()
     for tooltip, entry in pairs(tooltips) do
-        if entry.owned and Public(tooltip) then
+        if (entry.owned or entry.tick) and Public(tooltip) then
             local shown, accessible = Call(tooltip.IsShown, tooltip)
             if accessible and shown then
-                local line = TooltipLine(tooltip, entry.index)
-                local current, readable
-                if line then current, readable = Call(line.GetText, line) end
-                if readable and current == entry.owned then
-                    local label = Label(true)
-                    if label then
-                        line:SetText(label)
-                        entry.owned = label
+                if OwnedTooltip(tooltip, entry) then
+                    local labels = TooltipLabels()
+                    if #labels == #entry.owned then
+                        UpdateTooltip(tooltip, entry, labels)
                     elseif Public(entry.tick) and type(entry.tick.ExhaustionToolTipText) == "function" then
-                        -- Rebuild through the native method so disabling removes our line,
-                        -- while native content and other posthooks remain in control.
+                        -- Rebuild native content when our line count changes. Other
+                        -- tooltip posthooks still run, and the new block is added once.
+                        local tick = entry.tick
                         rebuilding = true
-                        pcall(entry.tick.ExhaustionToolTipText, entry.tick)
+                        pcall(tick.ExhaustionToolTipText, tick)
                         rebuilding = nil
-                        entry.index, entry.owned, entry.tick = nil, nil, nil
+                        entry.index, entry.owned, entry.tick = nil, nil, tick
+                        AddTooltip(tick)
                     else
-                        line:SetText("")
+                        for index in ipairs(entry.owned) do
+                            TooltipLine(tooltip, entry.index + index - 1):SetText("")
+                        end
                         entry.owned = nil
                     end
                     tooltip:Show()
+                elseif not entry.owned and entry.tick then
+                    AddTooltip(entry.tick)
                 end
             end
         end
@@ -167,11 +195,19 @@ local function HookBar(bar, text)
         if bar.HookScript then
             bar:HookScript("OnShow", function() ApplyText(entry) end)
             bar:HookScript("OnEnter", function() AddTooltip(bar.ExhaustionTick) end)
+            bar:HookScript("OnMouseUp", function(_, button)
+                if button == "LeftButton" and ZP.PromptXPStatsReset then ZP:PromptXPStatsReset() end
+            end)
         end
     end
     local tick = bar.ExhaustionTick
     if Public(tick) and not ticks[tick] then
         ticks[tick] = true
+        if tick.HookScript then
+            tick:HookScript("OnMouseUp", function(_, button)
+                if button == "LeftButton" and ZP.PromptXPStatsReset then ZP:PromptXPStatsReset() end
+            end)
+        end
         if type(tick.ExhaustionToolTipText) == "function" then
             hooksecurefunc(tick, "ExhaustionToolTipText", function() AddTooltip(tick) end)
         elseif tick.HookScript then

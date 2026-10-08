@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.15.0**. Interface version: **16001**.
+Current version: **1.16.0**. Interface version: **16001**.
 
 ## Features
 
@@ -12,6 +12,7 @@ Current version: **1.15.0**. Interface version: **16001**.
 - Show the caster of a buff or debuff in its tooltip, with player names in their class color.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
 - Show the rested XP reserve, as an amount and percentage of a level, on the native XP bar and its tooltip.
+- Show average XP/hour, the rate without earned rested bonus, and estimated time to level on the native XP bar, with a click-to-reset confirmation.
 - Optionally left-click unfinished objectives in the native quest tracker to target matching NPCs outside combat, with Questie-assisted item dropper matching and an optional raid marker.
 - Optionally highlight native spell buttons shortly before supported class buffs on the player expire, with a configurable warning threshold.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
@@ -25,9 +26,23 @@ Current version: **1.15.0**. Interface version: **16001**.
 
 The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
 
+## Changes in 1.16.0
+
+- Add **Interface → Items and experience → XP/hour and time to level**, enabled by default. The native XP bar shows average earned XP/hour, XP/hour with the observed rested bonus removed, and estimated time to the next level. Other bonuses, including group and XP buffs, remain included. The tooltip adds elapsed time, total XP and rested bonus earned since reset.
+- Left-click the native XP bar or its rested tick to open a **Reset / Cancel** confirmation. Only confirming starts a new average. Statistics persist per character across `/reload` and normal logout; the denominator counts online time, including idle time, and excludes time logged out. Recording continues when the display setting is off.
+- Track actual player XP changes, including a one-level rollover, and use the client's localized combat XP messages to identify rested bonus and eligible mob XP. Reconcile quest rewards against the remaining native XP gain without counting an unnamed chat message and quest reward twice. Unsupported or private information leaves the affected rate or estimate as **--**, with an explanation in the tooltip. Missing player XP updates or an unobserved jump across several levels require a reset before another reliable average can be shown.
+- Estimate the next level using the observed mix of eligible mob XP and other XP, the current remaining XP, and the remaining rested reserve. The estimate applies the rested boost only until that reserve runs out; it does not double quest XP or assume rested XP lasts to the next level. It assumes that your recent pace and mix of activities continue.
+- Keep native hover behavior, text visibility and tooltip content. Live changes, repeated refreshes and resets update only the addon's text block; disabling both XP display options restores native text. Include **XPStats.lua** when updating, then `/reload`.
+
+The native rested bar exposes a threshold spanning doubled XP, rather than a separately documented bonus capacity. The estimate initially uses half that threshold, following [XToLevel's implementation](https://github.com/dangard/XToLevel/blob/d0e1b98cd2dabc28b50830e391be47393d2db0b6/objects/Player.lua), and can validate the unit conversion against a fully classified bonus gain outside a resting area. The existing reserve display retains the same native threshold and percentage.
+
+Focused runtime checks cover XP rates, finite-rest estimates, mixed quest/mob XP, localized formats, quest/chat deduplication, event ordering, persistence, reset confirmation, unavailable data and recording while hidden. Integration checks cover both native bar layouts, tooltip ownership, live toggles and late frames; English/French settings layouts are rendered and checked. Actual client rendering and XP message formats still need an in-game check.
+
+Native behavior was checked against Forever's [XP bar](https://github.com/Gethe/wow-ui-source/blob/15666a6e67938a1ab5caf041406464251db111ca/Interface/AddOns/Blizzard_StatusTrackingBar/Shared/ExpBar.lua), [XP events](https://github.com/Gethe/wow-ui-source/blob/15666a6e67938a1ab5caf041406464251db111ca/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitDocumentation.lua) and [quest events](https://github.com/Gethe/wow-ui-source/blob/15666a6e67938a1ab5caf041406464251db111ca/Interface/AddOns/Blizzard_APIDocumentationGenerated/QuestLogDocumentation.lua).
+
 ## Changes in 1.15.0
 
-- Add **Interface → Items and experience → Rested XP reserve**, enabled by default. Append the bonus XP pool and its percentage of the current level's total XP to the native bar text and tooltip. For example, 15,000 rested XP with a 10,000 XP level displays 150%; this percentage describes the reserve, while the native tooltip's 200% describes the XP earning rate. Updates follow XP, resting and level changes; disabling restores native text. Max-level, XP-disabled and unavailable data are omitted.
+- Add **Interface → Items and experience → Rested XP reserve**, enabled by default. Append the native rested XP threshold and its percentage of the current level's total XP to the native bar text and tooltip. For example, 15,000 rested XP with a 10,000 XP level displays 150%; this percentage describes the reserve, while the native tooltip's 200% describes the XP earning rate. Updates follow XP, resting and level changes; disabling restores native text. Max-level, XP-disabled and unavailable data are omitted.
 - Add **Automation → Click objectives to target → Configure**. **Use Questie data when available** starts enabled and needs an installed, ready Questie. Match the native objective against Questie's own database wording or localized entity name rather than trusting row order. Quest items resolve to actual NPC droppers, excluding vendors, containers and world objects; verified monster, kill-credit and explicitly linked NPC event objectives are also supported. Unsupported or ambiguous objectives keep their native behavior, with simple English/French kill objectives available without Questie.
 - When several NPC names match, prefer current-zone spawns and cycle through the names on successive clicks. The tooltip shows the next name and its position in the list. Each click runs one `/targetexact`, within WoW's normal targeting range; it does not locate distant units or choose an arbitrary world object.
 - Add **Automatically mark the selected NPC**, disabled by default, with all eight native raid markers and Skull selected initially. Only the hardware quest click attempts marking, outside combat, after verifying the selected NPC's name and known database IDs. Existing markers are preserved; unavailable marker information, restricted targets or group permissions can prevent marking. No target-change event or delayed callback applies a marker.
