@@ -1,4 +1,4 @@
-ZwykPlus 1.8.2 - WoW Forever
+ZwykPlus 1.15.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -10,9 +10,38 @@ INSTALL
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
 
+ADDITIONS IN 1.15.0
+Rested XP reserve (Interface > Items and experience) is enabled by default.
+The native XP bar and tooltip show the bonus XP pool and its percentage of
+one complete current level; the percentage can exceed 100%. This is separate
+from the native tooltip's 200% XP earning rate. Turning it off restores the
+native text. Unavailable, maximum-level or XP-disabled data is skipped.
+
+Quest targeting (Automation > Click objectives to target > Configure) can
+optionally use an installed, ready Questie. It matches the objective against
+independent database text or localized entity names, not just row order.
+Quest item objectives target actual NPC droppers, not vendors, containers
+or world objects. Verified NPC kill, kill-credit and linked NPC event
+objectives are also supported. Simple English/French kill objectives work
+without Questie. Unsupported or ambiguous lines keep native behavior.
+When several names match, current-zone spawns come first and repeated clicks
+cycle the names. The tooltip shows the next name. Targeting is outside combat
+and uses the game's normal range.
+
+Automatic NPC marking is optional and disabled by default. Choose any of the
+eight native raid markers; Skull is the initial choice. A quest click attempts
+marking only after validating the selected NPC's name and known database IDs.
+Existing markers are preserved. Restricted marker data, targets or group
+permissions can prevent marking; no delayed callback applies a marker.
+
+Include RestedXP.lua and QuestObjectives.lua when updating, then /reload.
+Existing settings are preserved. Focused mocked-runtime tests and EN/FR
+configuration renders pass; native display and protected marking need an
+in-game check. README.md contains the full current changelog and references.
+
 SETTINGS
-The compact, opaque setup has Interface, Automation, Auras, Frames and Chat
-categories. It remembers the last selected category.
+The compact, opaque setup has Interface, Automation, Auras, Frames, Travel
+and Chat categories. It remembers the last selected category.
 Features are enabled initially except 3D portraits and class-colored frame
 names and nameplate targeting eyes (opt-in under Frames), and item binding
 icons (opt-in under Interface).

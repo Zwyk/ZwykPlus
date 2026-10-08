@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.14.0**. Interface version: **16001**.
+Current version: **1.15.0**. Interface version: **16001**.
 
 ## Features
 
@@ -11,7 +11,8 @@ Current version: **1.14.0**. Interface version: **16001**.
 - Enable available mineral, herb and fish tracking on login when inactive.
 - Show the caster of a buff or debuff in its tooltip, with player names in their class color.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
-- Optionally left-click simple unfinished kill objectives in the native quest tracker to target the exact monster name outside combat.
+- Show the rested XP reserve, as an amount and percentage of a level, on the native XP bar and its tooltip.
+- Optionally left-click unfinished objectives in the native quest tracker to target matching NPCs outside combat, with Questie-assisted item dropper matching and an optional raid marker.
 - Optionally highlight native spell buttons shortly before supported class buffs on the player expire, with a configurable warning threshold.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
@@ -23,6 +24,18 @@ Current version: **1.14.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.15.0
+
+- Add **Interface → Items and experience → Rested XP reserve**, enabled by default. Append the bonus XP pool and its percentage of the current level's total XP to the native bar text and tooltip. For example, 15,000 rested XP with a 10,000 XP level displays 150%; this percentage describes the reserve, while the native tooltip's 200% describes the XP earning rate. Updates follow XP, resting and level changes; disabling restores native text. Max-level, XP-disabled and unavailable data are omitted.
+- Add **Automation → Click objectives to target → Configure**. **Use Questie data when available** starts enabled and needs an installed, ready Questie. Match the native objective against Questie's own database wording or localized entity name rather than trusting row order. Quest items resolve to actual NPC droppers, excluding vendors, containers and world objects; verified monster, kill-credit and explicitly linked NPC event objectives are also supported. Unsupported or ambiguous objectives keep their native behavior, with simple English/French kill objectives available without Questie.
+- When several NPC names match, prefer current-zone spawns and cycle through the names on successive clicks. The tooltip shows the next name and its position in the list. Each click runs one `/targetexact`, within WoW's normal targeting range; it does not locate distant units or choose an arbitrary world object.
+- Add **Automatically mark the selected NPC**, disabled by default, with all eight native raid markers and Skull selected initially. Only the hardware quest click attempts marking, outside combat, after verifying the selected NPC's name and known database IDs. Existing markers are preserved; unavailable marker information, restricted targets or group permissions can prevent marking. No target-change event or delayed callback applies a marker.
+- Preserve existing settings and quest click recovery after combat. Include both new Lua modules when updating, then `/reload`.
+
+Focused mocked-runtime checks cover XP text and tooltip ownership, live updates and disabling, late native bars, Questie readiness and database matching, actual droppers, ambiguous objectives, localized counter layouts, multi-target cycling, pooled tracker rows, combat recovery and marker identity/permissions. English/French configuration layouts are rendered and checked. Native display and protected marker execution still need confirmation inside Forever.
+
+The Questie adapter was checked against [QuestieDB](https://github.com/Questie/Questie/blob/42ee926c519ed5d23be4ffc3e3d36d746e4edd7a/Database/QuestieDB.lua), [objective construction](https://github.com/Questie/Questie/blob/42ee926c519ed5d23be4ffc3e3d36d746e4edd7a/Modules/Quest/QuestieQuest.lua) and [readiness callbacks](https://github.com/Questie/Questie/blob/42ee926c519ed5d23be4ffc3e3d36d746e4edd7a/Public/README.md). Questie has no stable public objective-to-NPC API, so unavailable or changed database methods fall back to native kill matching.
 
 ## Changes in 1.14.0
 
@@ -192,7 +205,7 @@ WoW saves settings to disk on normal logout, exit or `/reload`.
 
 ## Compatibility and validation
 
-The addon targets Forever Interface 16001 and has no addon or library dependencies. Unknown or restricted aura/player information is omitted. Aura source lines require an addon-accessible tooltip; private forbidden native target aura tooltips cannot be extended. Caster targeting has a separate saved checkbox under the aura source option and supports the default player aura icons outside combat. It preserves tooltip hover and right-click cancellation and skips weapon enchants, missing casters and restricted information. Compact party/raid layouts without portraits are unaffected. Chat icons support the default chat windows, including temporary windows; separate third-party chat windows are not integrated.
+The addon targets Forever Interface 16001 and has no required external dependencies. LibCustomGlow and LibStub are bundled; Questie is optional for additional objective matching. Unknown or restricted aura/player information is omitted. Aura source lines require an addon-accessible tooltip; private forbidden native target aura tooltips cannot be extended. Caster targeting has a separate saved checkbox under the aura source option and supports the default player aura icons outside combat. It preserves tooltip hover and right-click cancellation and skips weapon enchants, missing casters and restricted information. Compact party/raid layouts without portraits are unaffected. Chat icons support the default chat windows, including temporary windows; separate third-party chat windows are not integrated.
 
 Feature behavior, saved settings, class colors, secure click attributes/state transitions, hidden/asynchronous model loading, idle animation, 2D fallback, reload decisions, public aura setter coverage, surname formatting, links/history, asynchronous item loading and restricted information were checked in a mocked Lua runtime. English/French panel layouts were checked with rendered widget positions. The strengthened portrait test fails against 1.4.0 and passes against 1.4.1. Actual secure hardware clicks, reload permission and portrait rendering still need validation inside Forever.
 

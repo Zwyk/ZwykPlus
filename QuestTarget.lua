@@ -94,6 +94,7 @@ local function MonsterName(text)
     if name then return name end
     -- Fallbacks for the standard English/French kill objectives only.
     local prefix = text:match("^(.-)%s*:%s*%d+%s*/%s*%d+%s*$")
+        or text:match("^%s*%d+%s*/%s*%d+%s+(.+)%s*$")
     if not prefix then return end
     for _, suffix in ipairs({"slain", "killed", "tué", "tués", "tuée", "tuées", "tué%(s%)"}) do
         name = SafeName(prefix:match("^(.-)%s+" .. suffix .. "%s*$"))
@@ -101,15 +102,49 @@ local function MonsterName(text)
     end
 end
 
-local function ObjectiveName(block, key, module)
+local function Candidates(block, key, module)
     if not PublicFrame(block) or not Readable(block.parentModule) or block.parentModule ~= module or not Number(block.id)
         or not Number(key) or not (C_QuestLog and C_QuestLog.GetLogIndexForQuestID and GetQuestLogLeaderBoard) then return end
     local ok, logIndex = pcall(C_QuestLog.GetLogIndexForQuestID, block.id)
     if not ok or not Number(logIndex) then return end
     local text, kind, finished
     ok, text, kind, finished = pcall(GetQuestLogLeaderBoard, key, logIndex, true)
-    if not ok or not Readable(kind) or kind ~= "monster" or not Readable(finished) or finished ~= false then return end
-    return MonsterName(text)
+    if not ok or not String(kind) or not String(text) or not Readable(finished) or finished ~= false then return end
+    local raw
+    local useQuestie = ZP.db and ZP.db.questTargetQuestie
+    if Readable(useQuestie) and useQuestie == true and ZP.ResolveQuestObjective then
+        local resolved, value = pcall(ZP.ResolveQuestObjective, ZP, block.id, key, text, kind)
+        if resolved and Readable(value) and type(value) == "table" then raw = value end
+    end
+    local candidates, names = {}, {}
+    for _, candidate in ipairs(raw or {}) do
+        if #candidates >= 80 then break end
+        if Readable(candidate) and type(candidate) == "table" then
+            local name = SafeName(candidate.name)
+            if name and not names[name] then
+                local ids = {}
+                if Number(candidate.npcID) then ids[candidate.npcID] = true end
+                if Readable(candidate.npcIDs) and type(candidate.npcIDs) == "table" then
+                    for _, id in ipairs(candidate.npcIDs) do if Number(id) then ids[id] = true end end
+                end
+                candidates[#candidates + 1] = {name = name, npcIDs = ids}
+                names[name] = true
+            end
+        end
+    end
+    if #candidates == 0 and kind == "monster" then
+        local name = MonsterName(text)
+        if name then candidates[1] = {name = name, npcIDs = {}} end
+    end
+    if #candidates == 0 then return end
+    local signature = {}
+    for _, candidate in ipairs(candidates) do
+        local ids = {}
+        for id in pairs(candidate.npcIDs) do ids[#ids + 1] = id end
+        table.sort(ids)
+        signature[#signature + 1] = candidate.name .. "\031" .. table.concat(ids, ",")
+    end
+    return candidates, table.concat(signature, "\030")
 end
 
 local function HideTooltip(button)
@@ -117,6 +152,7 @@ local function HideTooltip(button)
 end
 
 local function Hide(record)
+    record.clicked = nil
     record.button:SetAttribute("type", nil)
     record.button:SetAttribute("macrotext", nil)
     record.button:Hide()
@@ -129,10 +165,66 @@ local function Valid(record)
         or not Visible(block) or not Visible(line) or not Readable(block.id) or block.id ~= record.questID then return false end
     local lines = block.usedLines
     if not Readable(lines) or type(lines) ~= "table" or not Readable(lines[record.key]) or lines[record.key] ~= line then return false end
-    return ObjectiveName(block, record.key, module) == record.name
+    local _, signature = Candidates(block, record.key, module)
+    return signature ~= nil and signature == record.signature
 end
 
-local function Attach(block, line, key, name)
+local function MarkTarget(candidate)
+    local enabled, icon = ZP.db and ZP.db.questTargetMarker, ZP.db and ZP.db.questTargetMarkerIcon
+    if not Readable(enabled) or enabled ~= true or not Number(icon) or icon > 8 or InCombat() then return end
+    if not (UnitName and UnitGUID and UnitIsPlayer and UnitIsDeadOrGhost and CanBeRaidTarget
+        and GetRaidTargetIndex and IsInRaid and SetRaidTarget) then return end
+    local ok, player = pcall(UnitIsPlayer, "target")
+    if not ok or not Readable(player) or player ~= false then return end
+    local dead
+    ok, dead = pcall(UnitIsDeadOrGhost, "target")
+    if not ok or not Readable(dead) or dead ~= false then return end
+    local name, guid
+    ok, name = pcall(UnitName, "target")
+    if not ok or not String(name) or name ~= candidate.name then return end
+    ok, guid = pcall(UnitGUID, "target")
+    if not ok or not String(guid) then return end
+    local kind, id = guid:match("^(%a+)%-%d+%-%d+%-%d+%-%d+%-(%d+)%-.+$")
+    id = tonumber(id)
+    if (kind ~= "Creature" and kind ~= "Vehicle") or not Number(id)
+        or (next(candidate.npcIDs) and not candidate.npcIDs[id]) then return end
+    local allowed
+    ok, allowed = pcall(CanBeRaidTarget, "target")
+    if not ok or not Readable(allowed) or allowed ~= true then return end
+    local raid
+    ok, raid = pcall(IsInRaid)
+    if not ok or not Readable(raid) or type(raid) ~= "boolean" then return end
+    if raid then
+        local leaderOK, leader = pcall(UnitIsGroupLeader or function() end, "player")
+        local assistOK, assistant = pcall(UnitIsGroupAssistant or function() end, "player")
+        if not ((leaderOK and Readable(leader) and leader == true)
+            or (assistOK and Readable(assistant) and assistant == true)) then return end
+    end
+    -- Preserve existing markers. An opaque marker index is unavailable, not zero.
+    local existing
+    ok, existing = pcall(GetRaidTargetIndex, "target")
+    if not ok or not Readable(existing) or (existing ~= nil and existing ~= 0) then return end
+    local unchanged, current = pcall(UnitGUID, "target")
+    if not unchanged or not String(current) or current ~= guid or InCombat() then return end
+    local marked = pcall(SetRaidTarget, "target", icon)
+    if not marked and ZP.WarnOnce then ZP:WarnOnce("questTargetMarker", ZP.L.questTargetMarkerFailed) end
+end
+
+local function Tooltip(record)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(record.button, "ANCHOR_LEFT")
+    if Valid(record) then
+        GameTooltip:SetText(string.format(ZP.L.questObjectiveTargetClick, record.name), 1, 0.82, 0)
+        if #record.candidates > 1 and GameTooltip.AddLine then
+            GameTooltip:AddLine(string.format(ZP.L.questObjectiveTargetChoice, record.cursor, #record.candidates), 0.85, 0.85, 0.85, true)
+        end
+    else
+        GameTooltip:SetText(ZP.L.questObjectiveTargetUnavailable, 1, 0.82, 0)
+    end
+    GameTooltip:Show()
+end
+
+local function Attach(block, line, key, candidates, signature)
     local record = records[line]
     if not record then
         -- Unlike SecureActionButtonTemplate, this does not protect the pooled native rows.
@@ -149,24 +241,34 @@ local function Attach(block, line, key, name)
         button:SetAllPoints(line.Text)
         button:SetScript("PreClick", function()
             -- A pooled line may have changed before the queued layout refresh.
-            if not Valid(record) then Hide(record) end
+            if not Valid(record) then Hide(record); return end
+            record.clicked = record.candidates[record.cursor]
+            record.button:SetAttribute("macrotext", "/targetexact " .. record.clicked.name)
         end)
-        button:SetScript("OnEnter", function()
-            if not GameTooltip then return end
-            GameTooltip:SetOwner(button, "ANCHOR_LEFT")
-            if Valid(record) then
-                GameTooltip:SetText(string.format(ZP.L.questObjectiveTargetClick, record.name), 1, 0.82, 0)
-            else
-                GameTooltip:SetText(ZP.L.questObjectiveTargetUnavailable, 1, 0.82, 0)
-            end
-            GameTooltip:Show()
+        button:SetScript("PostClick", function()
+            local candidate = record.clicked
+            record.clicked = nil
+            if not candidate or not Valid(record) then return end
+            MarkTarget(candidate)
+            record.cursor = record.cursor % #record.candidates + 1
+            record.name = record.candidates[record.cursor].name
+            record.button:SetAttribute("macrotext", "/targetexact " .. record.name)
+            if GameTooltip and GameTooltip.GetOwner and GameTooltip:GetOwner() == button then Tooltip(record) end
         end)
+        button:SetScript("OnEnter", function() Tooltip(record) end)
         button:SetScript("OnLeave", function() HideTooltip(button) end)
         line:HookScript("OnHide", function() Hide(record) end)
         line:HookScript("OnShow", function() QueueRefresh() end)
     end
-    record.block, record.questID, record.key, record.name = block, block.id, key, name
-    record.button:SetAttribute("macrotext", "/targetexact " .. name)
+    if record.signature ~= signature then
+        local nextName = record.name
+        record.cursor = 1
+        for index, candidate in ipairs(candidates) do if candidate.name == nextName then record.cursor = index; break end end
+    end
+    record.candidates, record.signature = candidates, signature
+    record.block, record.questID, record.key = block, block.id, key
+    record.name = candidates[record.cursor or 1].name
+    record.button:SetAttribute("macrotext", "/targetexact " .. record.name)
     record.button:SetAttribute("type", "macro")
     record.button:Show()
     record.seen = true
@@ -215,8 +317,8 @@ function ZP:RefreshQuestTarget()
                 if not Readable(lines) or type(lines) ~= "table" then return end
                 for key, line in pairs(lines) do
                     if Number(key) and Visible(line) and line.HookScript and PublicFrame(line.Text) then
-                        local name = ObjectiveName(block, key, module)
-                        if name then Attach(block, line, key, name) end
+                        local candidates, signature = Candidates(block, key, module)
+                        if candidates then Attach(block, line, key, candidates, signature) end
                     end
                 end
             end)
@@ -229,11 +331,14 @@ function ZP:InitializeQuestTarget()
     if events then return end
     combatActive = InCombat()
     events = CreateFrame("Frame")
+    if self.InitializeQuestObjectives then self:InitializeQuestObjectives(QueueRefresh) end
     for _, event in ipairs({"ADDON_LOADED", "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE",
-        "QUEST_WATCH_LIST_CHANGED", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED"}) do
+        "QUEST_WATCH_LIST_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED"}) do
         events:RegisterEvent(event)
     end
     events:SetScript("OnEvent", function(_, event)
+        if ZP.InvalidateQuestObjectives then ZP:InvalidateQuestObjectives() end
+        if event == "ADDON_LOADED" and ZP.InitializeQuestObjectives then ZP:InitializeQuestObjectives(QueueRefresh) end
         if event == "PLAYER_REGEN_DISABLED" then
             combatActive = true
             CancelRefresh()

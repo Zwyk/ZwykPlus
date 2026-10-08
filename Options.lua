@@ -8,6 +8,7 @@ local reloadNote
 local diagnosticsWindow, diagnosticsText, diagnosticsMeasure
 local portraitWindow
 local buffReminderWindow
+local questTargetWindow, questMarkerSelector
 local healerManaWindow
 local healerManaChoices = {}
 local settingSliders = {}
@@ -107,6 +108,66 @@ local function GlowSelector(parent, key, text, y)
     end)
     glowSelectors[#glowSelectors + 1] = selector
     return selector
+end
+
+local function QuestMarkerText(icon)
+    local name = _G["RAID_TARGET_" .. icon] or L["questTargetMarker_" .. icon]
+    return "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_" .. icon .. ":16:16:0:0|t " .. name
+end
+
+function ZP:ShowQuestTargetOptions()
+    if not self.db then self:InitializeDB() end
+    if not questTargetWindow then
+        local panel = CreateFrame("Frame", "ZwykPlusQuestTargetOptions", UIParent, "BackdropTemplate")
+        panel:Hide()
+        panel:SetSize(420, 380)
+        panel:SetPoint("CENTER")
+        panel:SetFrameStrata("FULLSCREEN_DIALOG")
+        panel:SetClampedToScreen(true)
+        panel:EnableMouse(true)
+        panel:SetMovable(true)
+        panel:RegisterForDrag("LeftButton")
+        panel:SetScript("OnDragStart", panel.StartMoving)
+        panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+        panel:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
+        panel:SetBackdropColor(0.045, 0.04, 0.025, 1)
+        panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
+        Label(panel, L.questTargetOptionsTitle, 24, -20, 340, "GameFontNormalLarge")
+        Label(panel, L.questTargetOptionsHelp, 24, -50, 372)
+        Checkbox(panel, "questTargetQuestie", L.questTargetQuestie, 24, -114, 340,
+            "questObjectiveTarget", L.questTargetQuestieHelp)
+        Checkbox(panel, "questTargetMarker", L.questTargetMarker, 24, -164, 340,
+            "questObjectiveTarget", L.questTargetMarkerHelp)
+        Label(panel, L.questTargetMarkerIcon, 30, -219, 162, "GameFontNormal")
+        local selector = CreateFrame("Frame", "ZwykPlusquestTargetMarkerIcon", panel, "UIDropDownMenuTemplate")
+        selector:SetPoint("TOPLEFT", 204, -208)
+        UIDropDownMenu_SetWidth(selector, 145)
+        UIDropDownMenu_SetFrameStrata(selector, "TOOLTIP")
+        UIDropDownMenu_Initialize(selector, function(_, level)
+            for icon = 1, 8 do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text, info.value = QuestMarkerText(icon), icon
+                info.checked = ZP.db.questTargetMarkerIcon == icon
+                info.func = function() ZP:SetOption("questTargetMarkerIcon", icon) end
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end)
+        questMarkerSelector = selector
+        Label(panel, L.questTargetMarkerNote, 24, -264, 372)
+        local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+        closeIcon:SetPoint("TOPRIGHT", -6, -6)
+        closeIcon:SetScript("OnClick", function() panel:Hide() end)
+        local close = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        close:SetPoint("BOTTOMRIGHT", -24, 15)
+        close:SetSize(90, 24)
+        close:SetText(L.close)
+        close:SetScript("OnClick", function() panel:Hide() end)
+        panel:SetScript("OnShow", function() ZP:RefreshOptions() end)
+        UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusQuestTargetOptions"
+        questTargetWindow = panel
+    end
+    questTargetWindow:Show()
 end
 
 local function OwnsBuffColorPicker(session)
@@ -428,11 +489,12 @@ local function BuildPages()
     local page = pages.interface
     Label(page, L.messagesGroup, 0, 0, 370, "GameFontNormal")
     Checkbox(page, "hideErrors", L.compactErrors, 0, -23, 355, nil, L.errorsHelp)
-    Label(page, L.cameraGroup, 0, -80, 370, "GameFontNormal")
-    Checkbox(page, "maxZoom", L.compactCamera, 0, -103, 355, nil, L.cameraHelp)
-    Checkbox(page, "zoomOnLogin", L.compactZoom, 23, -133, 332, "maxZoom", L.zoom)
-    Label(page, L.itemsGroup, 0, -183, 370, "GameFontNormal")
-    Checkbox(page, "itemBindingIcons", L.itemBindingIcons, 0, -206, 355, nil, L.itemBindingIconsHelp)
+    Label(page, L.cameraGroup, 0, -67, 370, "GameFontNormal")
+    Checkbox(page, "maxZoom", L.compactCamera, 0, -90, 355, nil, L.cameraHelp)
+    Checkbox(page, "zoomOnLogin", L.compactZoom, 23, -120, 332, "maxZoom", L.zoom)
+    Label(page, L.itemsGroup, 0, -156, 370, "GameFontNormal")
+    Checkbox(page, "itemBindingIcons", L.itemBindingIcons, 0, -179, 355, nil, L.itemBindingIconsHelp)
+    Checkbox(page, "restedXP", L.restedXP, 0, -206, 355, nil, L.restedXPHelp)
 
     page = pages.automation
     Label(page, L.trackingGroup, 0, 0, 370, "GameFontNormal")
@@ -441,7 +503,12 @@ local function BuildPages()
     Checkbox(page, "herbs", L.herbs, 209, -65, 157, "autoTracking", L.trackingHelp)
     Checkbox(page, "fish", L.fish, 23, -96, 330, "autoTracking", L.trackingHelp)
     Label(page, L.trackingNote, 23, -142, 369)
-    Checkbox(page, "questObjectiveTarget", L.questObjectiveTarget, 0, -200, 355, nil, L.questObjectiveTargetHelp)
+    Checkbox(page, "questObjectiveTarget", L.questObjectiveTarget, 0, -200, 240, nil, L.questObjectiveTargetHelp)
+    local configureQuests = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    configureQuests:SetPoint("TOPLEFT", 279, -200)
+    configureQuests:SetSize(114, 24)
+    configureQuests:SetText(L.configure)
+    configureQuests:SetScript("OnClick", function() ZP:ShowQuestTargetOptions() end)
 
     page = pages.auras
     Label(page, L.tooltipGroup, 0, 0, 370, "GameFontNormal")
@@ -538,6 +605,12 @@ function ZP:RefreshOptions()
         UIDropDownMenu_SetText(selector, L["buffReminderGlow_" .. style])
         if self.db.buffReminder then UIDropDownMenu_EnableDropDown(selector)
         else UIDropDownMenu_DisableDropDown(selector) end
+    end
+    if questMarkerSelector then
+        UIDropDownMenu_SetSelectedValue(questMarkerSelector, self.db.questTargetMarkerIcon)
+        UIDropDownMenu_SetText(questMarkerSelector, QuestMarkerText(self.db.questTargetMarkerIcon))
+        if self.db.questObjectiveTarget and self.db.questTargetMarker then UIDropDownMenu_EnableDropDown(questMarkerSelector)
+        else UIDropDownMenu_DisableDropDown(questMarkerSelector) end
     end
     if buffColorButton then
         local _, r, g, b, opacity = self:GetBuffReminderAppearance(false)

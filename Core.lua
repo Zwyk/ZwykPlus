@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.14.0"
+ZP.version = "1.15.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -21,10 +21,14 @@ local defaults = {
     portraitClassBackground = true,
     frameClassColors = false,
     itemBindingIcons = false,
+    restedXP = true,
     nameplateTargetEyes = false,
     healerMana = false,
     flightTimer = false,
     questObjectiveTarget = false,
+    questTargetQuestie = true,
+    questTargetMarker = false,
+    questTargetMarkerIcon = 8,
     buffReminder = false,
     buffReminderPercent = 20,
     buffReminderAfterPercent = 20,
@@ -39,6 +43,7 @@ local numericSettings = {
     buffReminderPercent = {minimum = 5, maximum = 100, step = 5},
     buffReminderAfterPercent = {minimum = 0, maximum = 100, step = 5},
     buffReminderGlowTransparency = {minimum = 0, maximum = 100, step = 1},
+    questTargetMarkerIcon = {minimum = 1, maximum = 8, step = 1},
 }
 local function Readable(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -103,7 +108,7 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 17
+    ZwykPlusDB.version = 18
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -265,6 +270,11 @@ function ZP:SetOption(key, value)
         if self.RefreshBuffReminder then self:RefreshBuffReminder(true) end
     elseif key == "buffReminder" or key == "buffReminderPercent" or key == "buffReminderAfterPercent" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder() end
+    elseif key == "questObjectiveTarget" or key == "questTargetQuestie" or key == "questTargetMarker"
+        or key == "questTargetMarkerIcon" then
+        if self.RefreshQuestTarget then self:RefreshQuestTarget() end
+    elseif key == "restedXP" then
+        if self.RefreshRestedXP then self:RefreshRestedXP() end
     elseif numericSettings[key] or key == "portraitClassBackground" then
         if self.RefreshPortraits then self:RefreshPortraits(false) end
     elseif key == "frameClassColors" then
@@ -277,8 +287,6 @@ function ZP:SetOption(key, value)
         if self.RefreshHealerMana then self:RefreshHealerMana() end
     elseif key == "flightTimer" then
         if self.RefreshFlightTimer then self:RefreshFlightTimer() end
-    elseif key == "questObjectiveTarget" then
-        if self.RefreshQuestTarget then self:RefreshQuestTarget() end
     else
         self:ApplyTracking()
     end
@@ -293,6 +301,7 @@ function ZP:ApplyAll()
     if self.RefreshPortraits then self:RefreshPortraits(false) end
     if self.RefreshNameColors then self:RefreshNameColors() end
     if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
+    if self.RefreshRestedXP then self:RefreshRestedXP() end
     if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
     if self.RefreshHealerMana then self:RefreshHealerMana() end
     if self.RefreshFlightTimer then self:RefreshFlightTimer() end
@@ -338,6 +347,7 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializePortraits then ZP:InitializePortraits() end
         if ZP.InitializeNameColors then ZP:InitializeNameColors() end
         if ZP.InitializeItemBindingIcons then ZP:InitializeItemBindingIcons() end
+        if ZP.InitializeRestedXP then ZP:InitializeRestedXP() end
         if ZP.InitializeNameplateTargetEyes then ZP:InitializeNameplateTargetEyes() end
         if ZP.InitializeHealerMana then ZP:InitializeHealerMana() end
         if ZP.InitializeFlightTimer then ZP:InitializeFlightTimer() end
