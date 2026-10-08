@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.13.0"
+ZP.version = "1.14.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -28,12 +28,17 @@ local defaults = {
     buffReminder = false,
     buffReminderPercent = 20,
     buffReminderAfterPercent = 20,
+    buffReminderBeforeGlow = "pixel",
+    buffReminderAfterGlow = "button",
+    buffReminderColor = {r = 1, g = 0.78, b = 0.12},
+    buffReminderGlowTransparency = 0,
 }
 local numericSettings = {
     portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
     portraitBackgroundTransparency = {minimum = 0, maximum = 100, step = 1},
     buffReminderPercent = {minimum = 5, maximum = 100, step = 5},
     buffReminderAfterPercent = {minimum = 0, maximum = 100, step = 5},
+    buffReminderGlowTransparency = {minimum = 0, maximum = 100, step = 1},
 }
 local function Readable(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -46,6 +51,24 @@ local function NormalizeNumber(key, value)
     local setting = numericSettings[key]
     value = math.max(setting.minimum, math.min(setting.maximum, value))
     return math.floor(value / setting.step + 0.5) * setting.step
+end
+local glowStyles = {pixel = true, button = true, autocast = true, proc = true}
+local function NormalizeGlow(key, value)
+    if Readable(value) and type(value) == "string" and glowStyles[value] then return value end
+    return defaults[key]
+end
+local function NormalizeColor(value)
+    local color = {}
+    local accessible = Readable(value) and type(value) == "table"
+    for _, key in ipairs({"r", "g", "b"}) do
+        local channel = accessible and rawget(value, key)
+        if not Readable(channel) or type(channel) ~= "number" or channel ~= channel
+            or channel == math.huge or channel == -math.huge then
+            channel = defaults.buffReminderColor[key]
+        end
+        color[key] = math.max(0, math.min(1, channel))
+    end
+    return color
 end
 local trackingSpells = {
     {key = "fish", spellID = 43308},
@@ -70,19 +93,31 @@ function ZP:InitializeDB()
     for key, value in pairs(defaults) do
         if numericSettings[key] then
             ZwykPlusDB[key] = NormalizeNumber(key, ZwykPlusDB[key])
+        elseif key == "buffReminderBeforeGlow" or key == "buffReminderAfterGlow" then
+            ZwykPlusDB[key] = NormalizeGlow(key, ZwykPlusDB[key])
+        elseif key == "buffReminderColor" then
+            ZwykPlusDB[key] = NormalizeColor(ZwykPlusDB[key])
         elseif not Readable(ZwykPlusDB[key]) or type(ZwykPlusDB[key]) ~= "boolean" then
             ZwykPlusDB[key] = value
         end
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 16
+    ZwykPlusDB.version = 17
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
 
 function ZP:Are3DPortraitsEnabled()
     return self.portraits3DActive == true
+end
+
+function ZP:GetBuffReminderAppearance(after)
+    local key = after and "buffReminderAfterGlow" or "buffReminderBeforeGlow"
+    local style = NormalizeGlow(key, self.db and self.db[key])
+    local color = NormalizeColor(self.db and self.db.buffReminderColor)
+    local transparency = NormalizeNumber("buffReminderGlowTransparency", self.db and self.db.buffReminderGlowTransparency)
+    return style, color.r, color.g, color.b, 1 - transparency / 100
 end
 
 function ZP:GetPortraitSetting(key)
@@ -211,7 +246,10 @@ end
 
 function ZP:SetOption(key, value)
     if defaults[key] == nil then return end
-    self.db[key] = numericSettings[key] and NormalizeNumber(key, value) or not not value
+    if numericSettings[key] then self.db[key] = NormalizeNumber(key, value)
+    elseif key == "buffReminderBeforeGlow" or key == "buffReminderAfterGlow" then self.db[key] = NormalizeGlow(key, value)
+    elseif key == "buffReminderColor" then self.db[key] = NormalizeColor(value)
+    else self.db[key] = not not value end
     if key == "hideErrors" then
         self:ApplyErrors()
     elseif key == "maxZoom" or key == "zoomOnLogin" then
@@ -222,6 +260,9 @@ function ZP:SetOption(key, value)
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
     elseif key == "portraits3D" then
         -- Native portrait mode is applied on reload; the checkbox is saved now.
+    elseif key == "buffReminderBeforeGlow" or key == "buffReminderAfterGlow" or key == "buffReminderColor"
+        or key == "buffReminderGlowTransparency" then
+        if self.RefreshBuffReminder then self:RefreshBuffReminder(true) end
     elseif key == "buffReminder" or key == "buffReminderPercent" or key == "buffReminderAfterPercent" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder() end
     elseif numericSettings[key] or key == "portraitClassBackground" then
@@ -330,8 +371,8 @@ function ZP:ShowBuffReminderDiagnostics()
         report.engineFailed or 0))
 end
 
-function ZP:TestBuffReminder()
-    local count = self.ShowBuffReminderPreview and self:ShowBuffReminderPreview() or 0
+function ZP:TestBuffReminder(after)
+    local count = self.ShowBuffReminderPreview and self:ShowBuffReminderPreview(after == true) or 0
     if count == 0 then print("|cffffcc66ZwykPlus:|r " .. L.buffReminderNoButtons) end
 end
 
@@ -347,6 +388,8 @@ SlashCmdList.ZWYKPLUS = function(message)
         ZP:ShowBuffReminderDiagnostics()
     elseif command == "test buffs" then
         ZP:TestBuffReminder()
+    elseif command == "test buffs after" then
+        ZP:TestBuffReminder(true)
     else
         ZP:ToggleOptions()
     end

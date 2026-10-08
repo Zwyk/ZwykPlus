@@ -11,6 +11,8 @@ local buffReminderWindow
 local healerManaWindow
 local healerManaChoices = {}
 local settingSliders = {}
+local glowSelectors = {}
+local buffColorButton, buffColorSession
 local pageOrder = {"interface", "automation", "auras", "frames", "travel", "chat"}
 local pageNames = {
     interface = L.categoryInterface, automation = L.categoryAutomation,
@@ -85,6 +87,112 @@ local function SettingSlider(parent, key, text, y, minimum, maximum, step, help,
     return slider
 end
 
+local glowChoices = {"pixel", "button", "autocast", "proc"}
+local function GlowSelector(parent, key, text, y)
+    Label(parent, text, 30, y - 8, 178, "GameFontNormal")
+    local selector = CreateFrame("Frame", "ZwykPlus" .. key, parent, "UIDropDownMenuTemplate")
+    selector:SetPoint("TOPLEFT", 204, y)
+    UIDropDownMenu_SetWidth(selector, 170)
+    UIDropDownMenu_SetFrameStrata(selector, "TOOLTIP")
+    selector.key = key
+    UIDropDownMenu_Initialize(selector, function(_, level)
+        local selected = ZP:GetBuffReminderAppearance(key == "buffReminderAfterGlow")
+        for _, style in ipairs(glowChoices) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text, info.value = L["buffReminderGlow_" .. style], style
+            info.checked = selected == style
+            info.func = function() ZP:SetOption(key, style) end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    glowSelectors[#glowSelectors + 1] = selector
+    return selector
+end
+
+local function OwnsBuffColorPicker(session)
+    return session.picker[session.callbackKey] == session.swatch and session.picker.cancelFunc == session.cancel
+end
+
+local function CloseBuffColorPicker(cancel)
+    local session = buffColorSession
+    if not session then return end
+    local picker = session.picker
+    local owned = OwnsBuffColorPicker(session)
+    local shown = owned and picker.IsShown and picker:IsShown()
+    if cancel and shown then session.cancel() end
+    session.closed, buffColorSession = true, nil
+    if shown then picker:Hide() end
+end
+
+function ZP:ShowBuffReminderColorPicker()
+    CloseBuffColorPicker(true)
+    local picker = ColorPickerFrame
+    if not picker then
+        local loadAddon = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
+        if loadAddon then pcall(loadAddon, "Blizzard_ColorPickerFrame") end
+        picker = ColorPickerFrame
+    end
+    if not picker or not picker.GetColorRGB or not (picker.SetupColorPickerAndShow or picker.SetColorRGB) then
+        self:WarnOnce("buffColorPicker", L.buffReminderColorUnavailable)
+        return
+    end
+    local _, r, g, b, opacity = self:GetBuffReminderAppearance(false)
+    local session = {picker = picker, original = {r = r, g = g, b = b}, transparency = (1 - opacity) * 100,
+        setup = true, callbackKey = picker.SetupColorPickerAndShow and "swatchFunc" or "func"}
+    buffColorSession = session
+    session.swatch = function()
+        if session.closed or session.setup or buffColorSession ~= session or not OwnsBuffColorPicker(session) then return end
+        local ok, red, green, blue = pcall(picker.GetColorRGB, picker)
+        if ok then ZP:SetOption("buffReminderColor", {r = red, g = green, b = blue}) end
+        if session.hasOpacity then
+            local alphaOK, alpha = pcall(picker.GetColorAlpha, picker)
+            if alphaOK and not (issecretvalue and issecretvalue(alpha))
+                and (not canaccessvalue or canaccessvalue(alpha)) and type(alpha) == "number"
+                and alpha == alpha and alpha ~= math.huge and alpha ~= -math.huge then
+                ZP:SetOption("buffReminderGlowTransparency", (1 - alpha) * 100)
+            end
+        end
+    end
+    session.cancel = function()
+        if session.closed or buffColorSession ~= session or not OwnsBuffColorPicker(session) then return end
+        session.closed, buffColorSession = true, nil
+        ZP:SetOption("buffReminderColor", session.original)
+        ZP:SetOption("buffReminderGlowTransparency", session.transparency)
+    end
+    if picker.HookScript and not picker.zwykPlusBuffColorHook then
+        picker.zwykPlusBuffColorHook = true
+        picker:HookScript("OnHide", function()
+            local active = buffColorSession
+            if active and active.picker == picker and not active.setup and OwnsBuffColorPicker(active) then
+                -- Classic hides the picker before invoking its Cancel callback.
+                -- Leave that callback one frame to restore the original values.
+                if C_Timer and C_Timer.After then C_Timer.After(0, function()
+                    if buffColorSession == active and not active.setup and OwnsBuffColorPicker(active)
+                        and not picker:IsShown() then active.closed, buffColorSession = true, nil end
+                end) end
+            end
+        end)
+    end
+    picker:SetFrameStrata("FULLSCREEN_DIALOG")
+    picker:SetFrameLevel(math.max(picker:GetFrameLevel(), (buffReminderWindow and buffReminderWindow:GetFrameLevel() or 0) + 30))
+    local ok
+    if picker.SetupColorPickerAndShow then
+        -- Forever's modern picker uses opacity directly: 1 is fully visible.
+        session.hasOpacity = type(picker.GetColorAlpha) == "function"
+        ok = pcall(picker.SetupColorPickerAndShow, picker, {r = r, g = g, b = b,
+            hasOpacity = session.hasOpacity, opacity = opacity, swatchFunc = session.swatch,
+            opacityFunc = session.hasOpacity and session.swatch or nil, cancelFunc = session.cancel})
+    else
+        picker:Hide()
+        picker.func, picker.swatchFunc, picker.cancelFunc = session.swatch, session.swatch, session.cancel
+        picker.hasOpacity, picker.opacityFunc = false, nil
+        ok = pcall(picker.SetColorRGB, picker, r, g, b)
+        if ok then ok = pcall(picker.Show, picker) end
+    end
+    session.setup = false
+    if not ok then CloseBuffColorPicker(false); self:WarnOnce("buffColorPicker", L.buffReminderColorUnavailable) end
+end
+
 function ZP:ShowPortraitOptions()
     if not self.db then self:InitializeDB() end
     if not portraitWindow then
@@ -131,7 +239,7 @@ function ZP:ShowBuffReminderOptions()
     if not buffReminderWindow then
         local panel = CreateFrame("Frame", "ZwykPlusBuffReminderOptions", UIParent, "BackdropTemplate")
         panel:Hide()
-        panel:SetSize(420, 460)
+        panel:SetSize(460, 670)
         panel:SetPoint("CENTER")
         panel:SetFrameStrata("FULLSCREEN_DIALOG")
         panel:SetClampedToScreen(true)
@@ -144,22 +252,36 @@ function ZP:ShowBuffReminderOptions()
             tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
         panel:SetBackdropColor(0.045, 0.04, 0.025, 1)
         panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
-        Label(panel, L.buffReminderOptionsTitle, 24, -20, 340, "GameFontNormalLarge")
-        Label(panel, L.buffReminderOptionsHelp, 24, -50, 372)
-        SettingSlider(panel, "buffReminderPercent", L.buffReminderPercent, -132, 5, 100, 5,
+        Label(panel, L.buffReminderOptionsTitle, 24, -20, 380, "GameFontNormalLarge")
+        Label(panel, L.buffReminderOptionsHelp, 24, -50, 412)
+        SettingSlider(panel, "buffReminderPercent", L.buffReminderPercent, -124, 5, 100, 5,
             L.buffReminderPercentHelp, "5%", "100%", L.buffReminderPercentFormat, "buffReminder")
-        SettingSlider(panel, "buffReminderAfterPercent", L.buffReminderAfterPercent, -212, 0, 100, 5,
+        GlowSelector(panel, "buffReminderBeforeGlow", L.buffReminderBeforeGlow, -168)
+        SettingSlider(panel, "buffReminderAfterPercent", L.buffReminderAfterPercent, -240, 0, 100, 5,
             L.buffReminderAfterPercentHelp, "0%", "100%", L.buffReminderPercentFormat, "buffReminder")
-        Label(panel, L.buffReminderSupported, 24, -264, 372)
-        Label(panel, L.buffReminderAfterLimit, 24, -354, 372)
+        GlowSelector(panel, "buffReminderAfterGlow", L.buffReminderAfterGlow, -284)
+        Label(panel, L.buffReminderColor, 30, -338, 260, "GameFontNormal")
+        buffColorButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        buffColorButton:SetPoint("TOPLEFT", 310, -330)
+        buffColorButton:SetSize(110, 24)
+        buffColorButton:SetText(L.buffReminderChooseColor)
+        buffColorButton.swatch = buffColorButton:CreateTexture(nil, "OVERLAY")
+        buffColorButton.swatch:SetPoint("LEFT", 8, 0)
+        buffColorButton.swatch:SetSize(12, 12)
+        buffColorButton:SetScript("OnClick", function() ZP:ShowBuffReminderColorPicker() end)
+        SettingSlider(panel, "buffReminderGlowTransparency", L.buffReminderGlowTransparency, -393, 0, 100, 1,
+            L.buffReminderGlowTransparencyHelp, L.portraitBackgroundOpaque, L.portraitBackgroundTransparent,
+            L.buffReminderPercentFormat, "buffReminder")
+        Label(panel, L.buffReminderSupported, 24, -454, 412)
+        Label(panel, L.buffReminderAfterLimit, 24, -526, 412)
         local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
         closeIcon:SetPoint("TOPRIGHT", -6, -6)
         closeIcon:SetScript("OnClick", function() panel:Hide() end)
         local preview = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        preview:SetPoint("BOTTOMLEFT", 24, 15)
-        preview:SetSize(105, 24)
-        preview:SetText(L.buffReminderPreview)
-        preview:SetScript("OnClick", function() ZP:TestBuffReminder() end)
+        preview:SetPoint("TOPLEFT", 24, -590)
+        preview:SetSize(198, 24)
+        preview:SetText(L.buffReminderPreviewBefore)
+        preview:SetScript("OnClick", function() ZP:TestBuffReminder(false) end)
         preview:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(L.buffReminderPreview, 1, 0.82, 0)
@@ -167,8 +289,15 @@ function ZP:ShowBuffReminderOptions()
             GameTooltip:Show()
         end)
         preview:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        local previewAfter = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        previewAfter:SetPoint("TOPLEFT", 238, -590)
+        previewAfter:SetSize(198, 24)
+        previewAfter:SetText(L.buffReminderPreviewAfter)
+        previewAfter:SetScript("OnClick", function() ZP:TestBuffReminder(true) end)
+        previewAfter:SetScript("OnEnter", preview:GetScript("OnEnter"))
+        previewAfter:SetScript("OnLeave", preview:GetScript("OnLeave"))
         local diagnostics = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        diagnostics:SetPoint("BOTTOMLEFT", 139, 15)
+        diagnostics:SetPoint("BOTTOMLEFT", 24, 15)
         diagnostics:SetSize(125, 24)
         diagnostics:SetText(L.buffReminderDiagnostics)
         diagnostics:SetScript("OnClick", function() ZP:ShowBuffReminderDiagnostics() end)
@@ -178,6 +307,7 @@ function ZP:ShowBuffReminderOptions()
         close:SetText(L.close)
         close:SetScript("OnClick", function() panel:Hide() end)
         panel:SetScript("OnShow", function() ZP:RefreshOptions() end)
+        panel:SetScript("OnHide", function() CloseBuffColorPicker(true) end)
         UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusBuffReminderOptions"
         buffReminderWindow = panel
     end
@@ -401,6 +531,19 @@ function ZP:RefreshOptions()
         slider:SetAlpha(enabled and 1 or 0.45)
         slider.valueLabel:SetAlpha(enabled and 1 or 0.45)
         slider.refreshing = false
+    end
+    for _, selector in ipairs(glowSelectors) do
+        local style = self:GetBuffReminderAppearance(selector.key == "buffReminderAfterGlow")
+        UIDropDownMenu_SetSelectedValue(selector, style)
+        UIDropDownMenu_SetText(selector, L["buffReminderGlow_" .. style])
+        if self.db.buffReminder then UIDropDownMenu_EnableDropDown(selector)
+        else UIDropDownMenu_DisableDropDown(selector) end
+    end
+    if buffColorButton then
+        local _, r, g, b, opacity = self:GetBuffReminderAppearance(false)
+        buffColorButton.swatch:SetColorTexture(r, g, b, opacity)
+        buffColorButton:SetEnabled(self.db.buffReminder)
+        buffColorButton:SetAlpha(self.db.buffReminder and 1 or 0.45)
     end
     if reloadNote then
         local combat = InCombatLockdown and InCombatLockdown()

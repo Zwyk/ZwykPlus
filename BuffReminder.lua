@@ -1,5 +1,6 @@
 local _, ZP = ...
-local events, queued, curve, colorCurve, threshold, previewUntil, buildPending
+local events, queued, curve, colorCurve, threshold, previewUntil, previewAfter, buildPending
+local curveRed, curveGreen, curveBlue, curveOpacity
 local buttons, records, mappedFamilies = {}, {}, {}
 local expiryHistory, historyValidated, auraChangedAt = {}, false, nil
 local elapsed, scanElapsed = 0, 0
@@ -78,81 +79,9 @@ local function PublicButton(button)
     return type(button.CreateTexture) == "function"
 end
 
-local function CreateGlow(button)
-    local icon = button.icon
-    if Readable(icon) and icon == nil then icon = button.Icon end
-    if not Readable(icon) or not icon or type(icon.GetObjectType) ~= "function" then icon = button end
-    -- The independent alpha gate may receive an opaque curve result. Only
-    -- its child lights animate; no animation reads or overrides that alpha.
-    local glow = CreateFrame("Frame", nil, UIParent)
-    glow:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
-    glow:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
-    glow:SetFrameLevel(button:GetFrameLevel() + 8)
-    glow:SetFrameStrata(button:GetFrameStrata())
-    glow:EnableMouse(false)
-    glow:SetAlpha(0)
-    glow:Hide()
-    local edges, lights = {}, {}
-    local function Texture(alpha, white)
-        local texture = glow:CreateTexture(nil, "OVERLAY")
-        texture:SetTexture("Interface\\Buttons\\WHITE8x8")
-        texture:SetBlendMode("ADD")
-        texture:SetVertexColor(1, white and 0.96 or 0.78, white and 0.65 or 0.12)
-        texture:SetAlpha(alpha)
-        return texture
-    end
-    for _, layer in ipairs({{8, 0.035}, {5, 0.09}, {3, 0.2}, {1, 0.7}}) do
-        local thickness, alpha = layer[1], layer[2]
-        for _, side in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
-            local texture = Texture(alpha)
-            if side == "TOP" or side == "BOTTOM" then
-                local offset = side == "TOP" and thickness / 2 or -thickness / 2
-                texture:SetPoint(side .. "LEFT", glow, side .. "LEFT", -thickness / 2, offset)
-                texture:SetPoint(side .. "RIGHT", glow, side .. "RIGHT", thickness / 2, offset)
-                texture:SetHeight(thickness)
-            else
-                local offset = side == "LEFT" and -thickness / 2 or thickness / 2
-                texture:SetPoint("TOP" .. side, glow, "TOP" .. side, offset, thickness / 2)
-                texture:SetPoint("BOTTOM" .. side, glow, "BOTTOM" .. side, offset, -thickness / 2)
-                texture:SetWidth(thickness)
-            end
-            edges[#edges + 1] = {texture = texture, alpha = alpha}
-        end
-    end
-    for i = 1, 8 do
-        local light = {}
-        for _, layer in ipairs({{7, 0.12}, {3.5, 0.6}, {1.5, 0.95}}) do
-            local texture = Texture(layer[2], layer[1] == 1.5)
-            texture:SetSize(layer[1], layer[1])
-            light[#light + 1] = {texture = texture, alpha = layer[2]}
-        end
-        lights[i] = light
-    end
-    local clock, animationElapsed = 0, 0
-    glow:SetScript("OnUpdate", function(self, delta)
-        clock, animationElapsed = clock + delta, animationElapsed + delta
-        if animationElapsed < 0.03 then return end
-        animationElapsed = 0
-        local width, height = self:GetWidth(), self:GetHeight()
-        if not Number(width) or not Number(height) or width <= 0 or height <= 0 then return end
-        local perimeter = 2 * (width + height)
-        local pulse = 0.8 + 0.2 * math.sin(clock * 4)
-        for _, edge in ipairs(edges) do edge.texture:SetAlpha(edge.alpha * pulse) end
-        for i, light in ipairs(lights) do
-            local distance = ((clock / 2.4 + (i - 1) / #lights) % 1) * perimeter
-            local x, y
-            if distance < width then x, y = distance, 0
-            elseif distance < width + height then x, y = width, distance - width
-            elseif distance < 2 * width + height then x, y = 2 * width + height - distance, height
-            else x, y = 0, perimeter - distance end
-            local shimmer = 0.7 + 0.3 * math.sin(clock * 7 + i)
-            for _, layer in ipairs(light) do
-                layer.texture:SetPoint("CENTER", self, "BOTTOMLEFT", x, y)
-                layer.texture:SetAlpha(layer.alpha * shimmer)
-            end
-        end
-    end)
-    return glow
+local function Appearance(after)
+    if ZP.GetBuffReminderAppearance then return ZP:GetBuffReminderAppearance(after) end
+    return after and "button" or "pixel", 1, 0.78, 0.12, 1
 end
 
 local function Clear(discardHistory)
@@ -169,9 +98,12 @@ end
 local function BuildCurve()
     local value = ZP.db and ZP.db.buffReminderPercent
     value = (Number(value) and math.max(5, math.min(100, value)) or 20) / 100
+    local _, red, green, blue, opacity = Appearance(false)
     if threshold == value and curve and (colorCurve
-        or not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor)) then return end
+        or not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor))
+        and curveRed == red and curveGreen == green and curveBlue == blue and curveOpacity == opacity then return end
     threshold, curve, colorCurve = value, nil, nil
+    curveRed, curveGreen, curveBlue, curveOpacity = red, green, blue, opacity
     if not C_CurveUtil or not C_CurveUtil.CreateCurve then return end
     local ok, result = pcall(function()
         local c = C_CurveUtil.CreateCurve()
@@ -187,11 +119,11 @@ local function BuildCurve()
     if C_CurveUtil.CreateColorCurve and CreateColor then
         local colorOK, colors = pcall(function()
             local c = C_CurveUtil.CreateColorCurve()
-            c:AddPoint(0, CreateColor(1, 0.82, 0.15, 0))
-            c:AddPoint(0.00001, CreateColor(1, 0.82, 0.15, 1))
-            c:AddPoint(value, CreateColor(1, 0.82, 0.15, 1))
-            c:AddPoint(value + 0.00001, CreateColor(1, 0.82, 0.15, 0))
-            c:AddPoint(value + 1, CreateColor(1, 0.82, 0.15, 0))
+            c:AddPoint(0, CreateColor(red, green, blue, 0))
+            c:AddPoint(0.00001, CreateColor(red, green, blue, opacity))
+            c:AddPoint(value, CreateColor(red, green, blue, opacity))
+            c:AddPoint(value + 0.00001, CreateColor(red, green, blue, 0))
+            c:AddPoint(value + 1, CreateColor(red, green, blue, 0))
             return c
         end)
         if colorOK and Readable(colors) then colorCurve = colors end
@@ -226,7 +158,8 @@ end
 local function ConfigureNative(button, entry)
     entry.nativeReady, entry.nativePending = false, false
     if not entry.family or not NativeReady() then return end
-    if entry.nativeFamily == entry.family and entry.nativeThreshold == threshold and entry.container then
+    if entry.nativeFamily == entry.family and entry.nativeThreshold == threshold
+        and entry.nativeColorCurve == colorCurve and entry.container then
         entry.nativeReady = pcall(entry.container.SetEnabled, entry.container, true)
         return
     end
@@ -269,7 +202,7 @@ local function ConfigureNative(button, entry)
                     local text = frame:CreateFontString(nil, "OVERLAY")
                     text:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 4)
                     text:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 24, "OUTLINE")
-                    text:SetTextColor(1, 0.82, 0.15, 0)
+                    text:SetTextColor(curveRed, curveGreen, curveBlue, 0)
                     entry.nativeText = text
                     frame:SetDurationText(text, options)
                 end,
@@ -282,7 +215,7 @@ local function ConfigureNative(button, entry)
     end)
     entry.nativeFailed = not ok
     if ok then
-        entry.nativeFamily, entry.nativeThreshold = entry.family, threshold
+        entry.nativeFamily, entry.nativeThreshold, entry.nativeColorCurve = entry.family, threshold, colorCurve
         entry.nativeReady = true
     else
         if entry.wrapper then pcall(entry.wrapper.Hide, entry.wrapper) end
@@ -315,7 +248,7 @@ local function BuildButtons()
                     if ok and Readable(kind) and kind == "spell" and Number(id) then family = spellFamilies[id] end
                 end
                 if not entry and family and not InCombat() then
-                    local ok, texture = pcall(CreateGlow, button)
+                    local ok, texture = pcall(ZP.CreateBuffGlow, ZP, button)
                     if ok and Readable(texture) and texture then
                         entry = {texture = texture}
                         buttons[button] = entry
@@ -431,9 +364,12 @@ local function Render()
             visible = shown and Readable(value) and value == true
         end
         local after = Enabled() and AfterExpiry(entry.family, now)
+        local style, red, green, blue, opacity = Appearance(preview and previewAfter or not preview and after)
+        local appearanceOK, applied = pcall(entry.texture.SetReminderAppearance, entry.texture, style, red, green, blue, opacity)
+        appearanceOK = appearanceOK and applied ~= false
         -- Visibility is public configuration/button state, never curve alpha.
         pcall(entry.texture.SetShown, entry.texture,
-            ((preview and entry.family) or (Enabled() and record) or after) and public and visible or false)
+            appearanceOK and ((preview and entry.family) or (Enabled() and record) or after) and public and visible or false)
         local ok = false
         if preview and entry.family and public then
             ok = pcall(entry.texture.SetAlpha, entry.texture, 1)
@@ -503,7 +439,7 @@ function ZP:RefreshBuffReminder(preservePreview)
     StartTicker()
 end
 
-function ZP:ShowBuffReminderPreview()
+function ZP:ShowBuffReminderPreview(after)
     if not events then return 0 end
     Clear()
     BuildCurve()
@@ -517,7 +453,10 @@ function ZP:ShowBuffReminderPreview()
         end
         if entry.family and visible then count = count + 1 end
     end
-    if count > 0 then previewUntil = GetTime() + 5; elapsed, scanElapsed = 0, 0; StartTicker(); Render() end
+    if count > 0 then
+        previewUntil, previewAfter = GetTime() + 5, after == true
+        elapsed, scanElapsed = 0, 0; StartTicker(); Render()
+    end
     return count
 end
 

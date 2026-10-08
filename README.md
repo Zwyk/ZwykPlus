@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.13.0**. Interface version: **16001**.
+Current version: **1.14.0**. Interface version: **16001**.
 
 ## Features
 
@@ -23,6 +23,16 @@ Current version: **1.13.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.14.0
+
+- Select an independent glow style for **Before expiration** and **After expiration**: **Pixel Glow**, **Action Button Glow**, **Autocast Shine** or **Proc Glow**. Defaults are Pixel before expiration and Action Button after expiration. Effects are anchored to the native spell icon; broad halos extend around that icon according to their original style. Native spell-proc effects remain independent.
+- Use one **shared color and transparency** for both stages. Click the color swatch to open Blizzard's color picker, or use the transparency slider from 0% (fully visible) to 100% (invisible). Live changes preserve an active preview. **Cancel** or **Escape** restores both original values, including the client's hide-before-cancel behavior.
+- Add separate five-second **Before** and **After** previews. Commands: **/zp test buffs** and **/zp test buffs after**. No spell is cast or simulated expired timer remembered by an appearance preview.
+- Apply shared color and transparency to the native **!** fallback too. Fully private aura data retains that native marker and its existing duration limitations; glow-style choices apply to the public reminder display.
+- Embed [LibCustomGlow minor 25](https://github.com/Stanzilla/LibCustomGlow/tree/4f8f5c2607d7384b26df9175bb99fa3df891b015) and LibStub 2, with their MIT/public-domain licenses and pinned source references in `Libs/`. The effect host contains only ordinary color/opacity values; the independent outer frame alone receives the client's opaque duration-to-alpha output.
+
+Regression checks run the embedded library's four effects under a UI fixture and cover style switching, shared RGB/opacity, previews, protected duration isolation, native color rebinding, saved-setting migration and picker ownership/cancellation. English/French configuration layouts are rendered and checked. Final effect appearance still needs confirmation in the Forever client.
 
 ## Changes in 1.13.0
 
