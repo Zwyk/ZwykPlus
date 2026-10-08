@@ -199,7 +199,7 @@ local function Duration(suffix, french)
     return nil, 1, true
 end
 
-function ZP:ParseSpellMetrics(description)
+local function ParseBasic(description)
     local text = Normalize(description)
     if not text then return nil end
     for _, pattern in ipairs(forbidden) do if text:find(pattern) then return nil end end
@@ -331,4 +331,226 @@ function ZP:ParseSpellMetrics(description)
         result.aoe, result.aoeTargetCap = true, cap
     end
     return result
+end
+
+-- Keep weapon and seal wording separate from the conservative general parser.
+-- These descriptors contain only values actually stated in the tooltip; the
+-- runtime resolves the player's current public weapon values when it is shown.
+-- Narrow Forever families verified against ElliotWood/Forever 56c11f4. Holy
+-- Strike takes the displayed percentage of (normalized weapon + flat amount).
+-- Righteousness and Command use explicitly labelled models at runtime, because
+-- their native text omits the current per-hit formula or proc frequency.
+local holyStrikeIDs = {[678] = true, [679] = true, [680] = true, [1866] = true,
+    [2495] = true, [5569] = true, [10332] = true, [10333] = true}
+local righteousIDs = {[20154] = true, [21084] = true, [20287] = true, [20288] = true,
+    [20289] = true, [20290] = true, [20291] = true, [20292] = true, [20293] = true}
+local commandIDs = {[20375] = true, [20915] = true, [20918] = true, [20919] = true, [20920] = true}
+
+local function SpellName(context)
+    if not Readable(context) or type(context) ~= "table" then return nil end
+    return Normalize(context.spellName)
+end
+
+local function IsHolyStrike(context)
+    local name = SpellName(context)
+    local id = Readable(context) and type(context) == "table" and context.spellID
+    return (Number(id) and holyStrikeIDs[id]) or name == "holy strike" or name == "frappe sacree"
+end
+
+local function Amount(text, french)
+    local low, high, tail = text:match("^%s*(%d[%d%.,]*)%s+to%s+(%d[%d%.,]*)(.*)$")
+    if not low then low, high, tail = text:match("^%s*(%d[%d%.,]*)%s+a%s+(%d[%d%.,]*)(.*)$") end
+    if not low then low, high, tail = text:match("^%s*(%d[%d%.,]*)%s*%-%s*(%d[%d%.,]*)(.*)$") end
+    if low then
+        low, high = Numeric(low, french), Numeric(high, french)
+        if not low or not high or high < low then return nil end
+        return (low + high) / 2, tail
+    end
+    local raw
+    raw, tail = text:match("^%s*(%d[%d%.,]*)(.*)$")
+    return raw and Numeric(raw, french), tail
+end
+
+local function FlatOutput(amount, kind, suffix)
+    if not amount or amount <= 0 then return nil end
+    local component = {kind = kind or "damage", total = amount, aoe = false, overtime = false}
+    return {[component.kind] = amount, components = {component}, aoe = false, overtime = false, hasDirect = true,
+        conditional = suffix or nil}
+end
+
+local function DamageTail(text)
+    text = text:gsub("^%s+as%s+", " "):gsub("^%s+en%s+", " "):gsub("[%s%p]+$", "")
+    local before, after = text:match("^(%s*[%a%s']-)damage(.*)$")
+    if before then return Bridge(before) and after == "" end
+    before, after = text:match("^(%s*[%a%s']-)degats(.*)$")
+    return before and Bridge(before) and Bridge(after)
+end
+
+local function Weapon(text, context, french)
+    -- Do not apply this route to proc, bleed, retaliation or combo-point text.
+    for _, pattern in ipairs({"chance", "probabilite", "each attack", "every attack", "each melee", "chaque attaque",
+        "combo", "when ", "lorsqu", "over%s+%d", "every%s+%d", "sur%s+%d", "pendant%s+%d", "reflect", "renvoi"}) do
+        if text:find(pattern) then return nil end
+    end
+    -- An explicit weapon DPS multiplier has no hidden damage or proc formula.
+    local dps = text:match("equal to%s+(%d[%d%.,]*)%s+times the damage per second of your main hand weapon")
+        or text:match("egal.-(%d[%d%.,]*)%s+fois les degats par seconde de votre arme.-main droite")
+    if dps then
+        dps = Numeric(dps, french)
+        if not dps or dps <= 0 or dps > 100 then return nil end
+        local additional = text:match("up to (%d+) additional nearby targets")
+            or text:match("jusqu'a (%d+) cibles supplementaires")
+        local cap = additional and tonumber(additional) + 1
+        if cap and (cap < 1 or cap > 80) then return nil end
+        return {components = {{kind = "damage", weaponDPSCoefficient = dps, aoe = cap ~= nil, overtime = false}},
+            aoe = cap ~= nil, aoeTargetCap = cap, overtime = false, hasDirect = true, weaponEstimate = true}
+    end
+    local percent, suffix = text:match("(%d[%d%.,]*)%%%s+weapon damage(.*)$")
+    if not percent then percent, suffix = text:match("(%d[%d%.,]*)%%%s+of normal weapon damage(.*)$") end
+    if not percent then percent, suffix = text:match("(%d[%d%.,]*)%%%s+of weapon damage(.*)$") end
+    if not percent then percent, suffix = text:match("(%d[%d%.,]*)%%%s+normal weapon damage(.*)$") end
+    if not percent then percent, suffix = text:match("(%d[%d%.,]*)%%%s+des degats de l'arme(.*)$") end
+    if not percent then percent, suffix = text:match("(%d[%d%.,]*)%%%s+des degats de votre arme(.*)$") end
+    if not percent then
+        if text:find("%%") then return nil end
+        suffix = text:match("weapon damage(.*)$") or text:match("degats de l'arme(.*)$")
+        if suffix then percent = "100" end
+    end
+    local coefficient = percent and Numeric(percent, french)
+    if not coefficient or coefficient <= 0 or coefficient > 1000 then return nil end
+    coefficient = coefficient / 100
+    local flat, tail = 0, suffix
+    local bonus = suffix:match("^%s+plus%s+an?%s+additional%s+(.+)$")
+        or suffix:match("^%s+plus%s+(.+)$")
+    if bonus then
+        flat, tail = Amount(bonus, french)
+        if not flat or flat <= 0 then return nil end
+        if not DamageTail(tail)
+            and not tail:match("^%s+to the target[%s%p]*$") then return nil end
+    elseif not tail:match("^[%s%p]*$") and not tail:match("^%s+to the target[%s%p]*$")
+        and not DamageTail(tail) then return nil end
+    local holyStrike = IsHolyStrike(context)
+    if holyStrike then flat = flat * coefficient end
+    local area = Area(text) ~= nil
+    return {components = {{kind = "damage", weaponCoefficient = coefficient, flatBonus = flat,
+        normalizedWeapon = holyStrike and true or "unknown", aoe = area, overtime = false}},
+        aoe = area, overtime = false, hasDirect = true, weaponEstimate = true}
+end
+
+local function GroundArea(text, context)
+    local name = SpellName(context)
+    if name ~= "consecration" and not text:find("consecrates the land", 1, true)
+        and not text:find("consacre le sol", 1, true) then return nil end
+    local first, last, count = text:find("the first (%d+) enemies")
+    if not first then first, last, count = text:find("les (%d+) premiers ennemis") end
+    local initial = first and text:sub(1, first - 1) or text
+    local base = ParseBasic(initial)
+    if not base or not base.damage or not base.overtime or not base.aoe then return nil end
+    if first then
+        count = tonumber(count)
+        if not count or count < 1 or count > 80 then return nil end
+        local extra = text:sub(last + 1):gsub("will take", "will suffer"):gsub("vont subir", "subissent")
+        extra = ParseBasic("all enemies " .. extra)
+        if not extra or not extra.damage or not extra.overtime or not extra.aoe or extra.duration ~= base.duration then return nil end
+        for _, component in ipairs(extra.components) do
+            component.targetCap = count
+            base.components[#base.components + 1] = component
+        end
+        base.damage = base.damage + extra.damage
+    end
+    base.groundArea = true
+    return base
+end
+
+local function Seal(text, context, french)
+    local name = SpellName(context)
+    if not (name and (name:match("^seal of ") or name:match("^sceau de ")))
+        and not text:find("only one seal can be active", 1, true) and not text:find("un seul sceau", 1, true) then return nil end
+    local start = text:find("unleashing this seal", 1, true) or text:find("liberer l'energie de ce sceau", 1, true)
+        or text:find("libere l'energie de ce sceau", 1, true) or text:find("lorsqu'il est libere", 1, true)
+    local buff, judgement = start and text:sub(1, start - 1) or text, start and text:sub(start) or nil
+    local result = {sections = {{kind = "seal"}, {kind = "judgement"}}}
+    local seal, judge = result.sections[1], result.sections[2]
+    local durationText = buff:match("for%s+(%d[%d%.,]*%s*%a+)") or buff:match("lasts%s+(%d[%d%.,]*%s*%a+)")
+        or buff:match("pendant%s+(%d[%d%.,]*%s*%a+)") or buff:match("dure%s+(%d[%d%.,]*%s*%a+)")
+    local duration = durationText and Seconds(durationText, french)
+    local amountText = buff:match("each melee attack an additional%s+(.+)$")
+        or buff:match("melee attacks to deal an additional%s+(.+)$")
+        or buff:match("chaque attaque de melee.-infliger%s+(.+)$")
+        or buff:match("attaques de melee.-infliger%s+(.+)$")
+        or buff:match("attaques de melee.-inflig%a*%s+(.+)$")
+        or buff:match("chaque attaque de melee.-(%d[%d%.,]*.-degats.+)$")
+    local procChance = buff:match("(%d[%d%.,]*)%%%s+chance") or buff:match("(%d[%d%.,]*)%%%s+de chances?")
+    local ppm = buff:match("(%d[%d%.,]*)%s+procs? per minute") or buff:match("(%d[%d%.,]*)%s+declenchements? par minute")
+    procChance, ppm = procChance and Numeric(procChance, french), ppm and Numeric(ppm, french)
+    if procChance and procChance > 100 then procChance = nil end
+    if ppm and ppm > 1000 then ppm = nil end
+    local id = Readable(context) and type(context) == "table" and Number(context.spellID)
+    local righteous = id and righteousIDs[id]
+    local command = id and commandIDs[id]
+    local weaponPercent = command and (buff:match("equal to%s+(%d[%d%.,]*)%%%s+of normal weapon damage")
+        or buff:match("egaux? a%s+(%d[%d%.,]*)%%%s+des degats.-arme")
+        or buff:match("egal.-(%d[%d%.,]*)%%%s+des degats.-arme"))
+    weaponPercent = weaponPercent and Numeric(weaponPercent, french)
+    if duration and (righteous or (command and weaponPercent and weaponPercent > 0 and weaponPercent <= 1000)) then
+        local component = {kind = "damage", spellID = id,
+            perSwing = true, duration = duration, overtime = true, aoe = false}
+        if command then
+            -- Current Forever sim's beta-log-validated 7 PPM model. This is
+            -- labelled as a model, rather than claimed as a native tooltip rate.
+            component.weaponCoefficient, component.procsPerMinute, component.holyWeapon = weaponPercent / 100, 7, true
+            component.model = "command"
+        else component.sealModel = "righteousness" end
+        seal.metrics = {duration = duration, overtime = true, aoe = false, components = {component}, modelEstimate = true}
+    elseif (buff:find("chance", 1, true) or buff:find("probabilite", 1, true)) and not procChance and not ppm then
+        seal.unsupported = "procChance"
+    elseif buff:find("slower weapons", 1, true) or buff:find("armes plus lentes", 1, true) then
+        -- This wording gives a range covering different weapon speeds, not an
+        -- explicit current-weapon formula. Do not average it into a false DPS.
+        seal.unsupported = "weaponRange"
+    elseif duration and amountText then
+        local amount, tail = Amount(amountText, french)
+        if amount and tail and (tail:match("^%s+[%a%s]-damage%f[%A]") or tail:match("^%s+[%a%s]-degats%f[%A]")) then
+            local component = {kind = "damage", total = amount, perSwing = true, duration = duration,
+                overtime = true, aoe = false}
+            if procChance then component.procChance = procChance / 100 end
+            if ppm then component.procsPerMinute = ppm end
+            seal.metrics = {damage = amount, duration = duration, overtime = true, aoe = false, components = {component}}
+            seal.metrics.partialEffects = buff:find("absorb", 1, true) ~= nil or buff:find("absorbe", 1, true) ~= nil
+        else seal.unsupported = "noDamage" end
+    else seal.unsupported = "noDamage" end
+    if judgement then
+        -- Command states the normal damage first, followed by a separate
+        -- stunned/incapacitated amount. Use that native baseline only.
+        local conditional = judgement:find("%f[%a]if ") or judgement:find("%f[%a]si ")
+        judge.metrics = ParseBasic(judgement)
+        local stunned = judgement:find("stunned", 1, true) or judgement:find("incapacitated", 1, true)
+            or judgement:find("etourdi", 1, true) or judgement:find("stupifie", 1, true)
+        local before = conditional and stunned and judgement:sub(1, conditional - 1)
+        local baseline = before and (before:match("caus%a*%s+(.+)$") or before:match("inflig%a*%s+(.+)$")
+            or before:match("provoqu%a*%s+(.+)$"))
+        if not judge.metrics and baseline then
+            local amount, tail = Amount(baseline, french)
+            if amount and tail and (tail:match("^%s+[%a%s]-damage%f[%A]") or tail:match("^%s+[%a%s]-degats%f[%A]")) then
+                judge.metrics = FlatOutput(amount, "damage", "unstunned")
+            end
+        end
+        if not judge.metrics then judge.unsupported = judgement:find("chance", 1, true) and "procChance"
+            or conditional and "conditional" or "noDamage" end
+    else judge.unsupported = "noDamage" end
+    return result
+end
+
+function ZP:ParseSpellMetrics(description, context)
+    local text = Normalize(description)
+    if not text then return nil end
+    local locale = GetLocale and GetLocale()
+    if locale ~= nil and (not Readable(locale) or (locale ~= "enUS" and locale ~= "enGB" and locale ~= "frFR")) then return nil end
+    local french = locale == "frFR"
+    local seal = Seal(text, context, french)
+    if seal then return seal end
+    local ground = GroundArea(text, context)
+    if ground then return ground end
+    if text:find("weapon", 1, true) or text:find("arme", 1, true) then return Weapon(text, context, french) end
+    return ParseBasic(description)
 end

@@ -2,7 +2,8 @@ local _, ZP = ...
 local events, queued, curve, colorCurve, threshold, previewUntil, previewAfter, buildPending
 local curveRed, curveGreen, curveBlue, curveOpacity
 local buttons, records, mappedFamilies = {}, {}, {}
-local expiryHistory, historyValidated, auraChangedAt = {}, false, nil
+local expiryHistory, historyValidated, removedAt = {}, false, {}
+local expiryDiscardCounts, expiryLastReason, expiryLastSpellID, expiryLastRemaining = {}, nil, nil, nil
 local elapsed, scanElapsed = 0, 0
 local scanStatus = "disabled"
 
@@ -84,10 +85,26 @@ local function Appearance(after)
     return after and "button" or "pixel", 1, 0.78, 0.12, 1
 end
 
-local function Clear(discardHistory)
+local function DropHistory(family, reason)
+    local history = expiryHistory[family]
+    if not history then return end
+    expiryHistory[family] = nil
+    expiryDiscardCounts[reason] = (expiryDiscardCounts[reason] or 0) + 1
+    expiryLastReason, expiryLastSpellID = reason, history.spellID
+    expiryLastRemaining = history.expires - GetTime()
+end
+
+local function DropAllHistory(reason)
+    for family in pairs(expiryHistory) do DropHistory(family, reason) end
+end
+
+local function Clear(discardHistory, reason)
     records = {}
     historyValidated = false
-    if discardHistory then expiryHistory, auraChangedAt = {}, nil end
+    if discardHistory then
+        DropAllHistory(reason or "reset")
+        removedAt = {}
+    end
     for _, entry in pairs(buttons) do
         pcall(entry.texture.SetAlpha, entry.texture, 0)
         pcall(entry.texture.Hide, entry.texture)
@@ -267,26 +284,26 @@ local function BuildButtons()
         if entry.family then mappedFamilies[entry.family] = true end
     end
     for family in pairs(expiryHistory) do
-        if not mappedFamilies[family] then expiryHistory[family] = nil end
+        if not mappedFamilies[family] then DropHistory(family, "unmapped-button") end
     end
 end
 
 local function ScanAuras()
     records = {}
     historyValidated = false
-    local changedAt = auraChangedAt
-    auraChangedAt = nil
+    local removals = removedAt
+    removedAt = {}
     scanStatus = "unavailable"
     local api = C_UnitAuras
-    if not api or not api.GetAuraDataByIndex then expiryHistory = {}; return end
+    if not api or not api.GetAuraDataByIndex then DropAllHistory("unavailable-api"); return end
     scanStatus = "ok"
     local duplicate, seen, identityBlocked, complete = {}, {}, false, false
     local now, after = GetTime(), AfterFraction()
-    if after == 0 then expiryHistory = {} end
+    if after == 0 then DropAllHistory("after-disabled") end
     for i = 1, 255 do
         local ok, aura = pcall(api.GetAuraDataByIndex, "player", i, "HELPFUL")
         if not ok or not Readable(aura) then
-            records, expiryHistory = {}, {}; scanStatus = "blocked"; return
+            records = {}; DropAllHistory("restricted-scan"); scanStatus = "blocked"; return
         end
         if aura == nil then complete = true; break end
         if type(aura) == "table" then
@@ -312,12 +329,13 @@ local function ScanAuras()
                     record.expires, record.total = expires, total
                     local previous = expiryHistory[family]
                     if mappedFamilies[family] and after > 0 and expires > now then
-                        expiryHistory[family] = {expires = expires, total = total}
+                        expiryHistory[family] = {expires = expires, total = total,
+                            spellID = id, instanceID = Number(instance) and instance or nil}
                     elseif not previous or previous.expires ~= expires or previous.total ~= total then
-                        expiryHistory[family] = nil
+                        DropHistory(family, "timing-changed")
                     end
                 else
-                    expiryHistory[family] = nil
+                    DropHistory(family, "missing-public-timing")
                 end
                 records[family] = record
             end
@@ -326,20 +344,21 @@ local function ScanAuras()
         end
     end
     -- Do not guess which of multiple simultaneous ranks is the effective buff.
-    for family in pairs(duplicate) do records[family], expiryHistory[family] = nil, nil end
+    for family in pairs(duplicate) do records[family] = nil; DropHistory(family, "duplicate-family") end
     if identityBlocked or not complete then
         -- An unknown identity could be a refresh of a remembered family. Do
         -- not infer absence or keep a cached timer through restricted data.
-        expiryHistory = {}
+        DropAllHistory(identityBlocked and "restricted-identities" or "incomplete-scan")
         return
     end
     for family, history in pairs(expiryHistory) do
         local finish = history.expires + history.total * after
         -- The queued scan can straddle expiry. A removal already observed
         -- before expiry must not turn into a natural-expiration reminder.
-        if (not seen[family] and (changedAt or now) < history.expires)
-            or not Number(finish) or now >= finish then
-            expiryHistory[family] = nil
+        if not seen[family] and (removals[family] or now) < history.expires then
+            DropHistory(family, "early-removal")
+        elseif not Number(finish) or now >= finish then
+            DropHistory(family, "expired-window")
         end
     end
     historyValidated = true
@@ -403,7 +422,7 @@ local function StartTicker()
         if elapsed < 0.2 then return end
         elapsed = 0
         if previewUntil and GetTime() >= previewUntil then previewUntil = nil end
-        if not Enabled() and not previewUntil then Clear(true); events:SetScript("OnUpdate", nil); return end
+        if not Enabled() and not previewUntil then Clear(true, "disabled"); events:SetScript("OnUpdate", nil); return end
         if Enabled() and scanElapsed >= 1 then
             scanElapsed = 0
             if buildPending and not InCombat() then BuildButtons() end
@@ -419,7 +438,7 @@ function ZP:RefreshBuffReminder(preservePreview)
     Clear()
     elapsed, scanElapsed = 0, 0
     if not Enabled() then
-        expiryHistory, auraChangedAt = {}, nil
+        Clear(true, "disabled")
         scanStatus = "disabled"
         for _, entry in pairs(buttons) do
             if entry.container then pcall(entry.container.SetEnabled, entry.container, false) end
@@ -464,7 +483,11 @@ function ZP:GetBuffReminderDiagnostics()
     local result = {enabled = Enabled(), percent = (threshold or 0.2) * 100,
         afterPercent = AfterFraction() * 100, mappedButtons = 0,
         publicAuras = 0, timingAvailable = 0, status = scanStatus, publicScanStatus = scanStatus, engineConfigured = 0,
-        enginePending = 0, engineFailed = 0, previewActive = previewUntil ~= nil}
+        enginePending = 0, engineFailed = 0, previewActive = previewUntil ~= nil,
+        publicTimedAuras = 0, postExpiryTimers = 0, postExpiryActive = 0,
+        historyValidated = historyValidated, expiryLastReason = expiryLastReason,
+        expiryLastSpellID = expiryLastSpellID, expiryLastRemaining = expiryLastRemaining,
+        expiryDiscardCounts = {}}
     for _, entry in pairs(buttons) do
         if entry.family then
             result.mappedButtons = result.mappedButtons + 1
@@ -476,8 +499,54 @@ function ZP:GetBuffReminderDiagnostics()
     for _, record in pairs(records) do
         result.publicAuras = result.publicAuras + 1
         if record.duration or record.expires then result.timingAvailable = result.timingAvailable + 1 end
+        if record.expires then result.publicTimedAuras = result.publicTimedAuras + 1 end
     end
+    local now = GetTime()
+    for family in pairs(expiryHistory) do
+        result.postExpiryTimers = result.postExpiryTimers + 1
+        if AfterExpiry(family, now) then result.postExpiryActive = result.postExpiryActive + 1 end
+    end
+    for reason, count in pairs(expiryDiscardCounts) do result.expiryDiscardCounts[reason] = count end
     return result
+end
+
+local function CapturePublicAbsences(now)
+    local api = C_UnitAuras
+    if not api or not api.GetAuraDataByAuraInstanceID then return end
+    for family, history in pairs(expiryHistory) do
+        if history.instanceID then
+            local ok, aura = pcall(api.GetAuraDataByAuraInstanceID, "player", history.instanceID)
+            if not ok or not Readable(aura) then
+                DropHistory(family, "restricted-removal")
+            elseif aura == nil then
+                removedAt[family] = removedAt[family] and math.min(removedAt[family], now) or now
+            elseif type(aura) ~= "table" then
+                DropHistory(family, "restricted-removal")
+            end
+        end
+    end
+end
+
+local function CaptureRemovalTimes(updateInfo)
+    local now = GetTime()
+    -- A public incremental payload identifies which remembered aura actually
+    -- disappeared. An unrelated aura event must not supply an earlier removal
+    -- time for a buff that naturally expires before the queued scan executes.
+    if not Readable(updateInfo) or type(updateInfo) ~= "table" then CapturePublicAbsences(now); return end
+    local full = updateInfo.isFullUpdate
+    if not Readable(full) or full == true then CapturePublicAbsences(now); return end
+    local ids = updateInfo.removedAuraInstanceIDs
+    if not Readable(ids) then CapturePublicAbsences(now); return end
+    if ids == nil then return end
+    if type(ids) ~= "table" then CapturePublicAbsences(now); return end
+    for _, id in ipairs(ids) do
+        if not Number(id) then CapturePublicAbsences(now); return end
+        for family, history in pairs(expiryHistory) do
+            if history.instanceID == id then
+                removedAt[family] = removedAt[family] and math.min(removedAt[family], now) or now
+            end
+        end
+    end
 end
 
 local function QueueRefresh()
@@ -495,18 +564,17 @@ function ZP:InitializeBuffReminder()
         "ENCOUNTER_START", "ENCOUNTER_END", "ACTIONBAR_SLOT_CHANGED", "ACTIONBAR_PAGE_CHANGED",
         "UPDATE_BONUS_ACTIONBAR", "UPDATE_VEHICLE_ACTIONBAR", "UPDATE_OVERRIDE_ACTIONBAR",
         "SPELLS_CHANGED", "ADDON_LOADED"}) do events:RegisterEvent(event) end
-    events:SetScript("OnEvent", function(_, event)
+    events:SetScript("OnEvent", function(_, event, unit, updateInfo)
         if event == "UNIT_AURA" then
-            local changedAt = GetTime()
-            auraChangedAt = auraChangedAt and math.min(auraChangedAt, changedAt) or changedAt
+            CaptureRemovalTimes(updateInfo)
         end
         if event == "ADDON_LOADED" then
             for _, entry in pairs(buttons) do entry.nativeFailed = nil end
         end
-        -- Immediately discard old access/state at transitions before coalescing
-        -- scans, including UNIT_AURA events whose payload is restricted.
-        Clear(event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_REGEN_DISABLED"
-            or event == "ENCOUNTER_START" or event == "ENCOUNTER_END")
+        -- Suspend rendering immediately. Combat/encounter history can only be
+        -- used again after a complete, public scan validates it; a restricted
+        -- scan discards it. World changes still reset the whole lifecycle.
+        Clear(event == "PLAYER_ENTERING_WORLD", event)
         QueueRefresh()
     end)
     self:RefreshBuffReminder()

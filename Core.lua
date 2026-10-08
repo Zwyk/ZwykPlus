@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.17.0"
+ZP.version = "1.18.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -390,6 +390,15 @@ function ZP:ShowBuffReminderDiagnostics()
         report.publicScanStatus or "?"))
     print(string.format(L.buffReminderDiagnosticEngine, report.engineConfigured or 0, report.enginePending or 0,
         report.engineFailed or 0))
+    print(string.format(L.buffReminderDiagnosticExpiry, report.publicTimedAuras or 0, report.postExpiryTimers or 0,
+        report.postExpiryActive or 0, report.historyValidated and L.yes or L.no))
+    print(string.format(L.buffReminderDiagnosticDiscard, report.expiryLastReason or "--",
+        report.expiryLastSpellID and tostring(report.expiryLastSpellID) or "--",
+        report.expiryLastRemaining and string.format("%.2f", report.expiryLastRemaining) or "--"))
+    local counts = {}
+    for reason, count in pairs(report.expiryDiscardCounts or {}) do counts[#counts + 1] = reason .. "=" .. count end
+    table.sort(counts)
+    print(string.format(L.buffReminderDiagnosticCounts, #counts > 0 and table.concat(counts, "; ") or "--"))
 end
 
 function ZP:TestBuffReminder(after)

@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.17.0**. Interface version: **16001**.
+Current version: **1.18.0**. Interface version: **16001**.
 
 ## Features
 
@@ -26,6 +26,20 @@ Current version: **1.17.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.18.0
+
+- Fix two intermittent after-expiration reminder failures: unrelated aura events no longer supply another buff's removal time, and combat/encounter transitions preserve remembered timers when a fresh, complete public scan validates them. Early cancellation, dispels and consumed buffs still suppress the after-expiration glow. Restricted timing/identity data still clears history; entering the world resets the lifecycle.
+- Expand **/zp buffs** diagnostics with public numeric timers, armed and active after-expiration reminders, validation state, last discarded spell/time and discard counts by reason. If a reminder still disappears, run this command shortly before and after expiration. `early-removal` identifies a removal before its recorded expiry; `restricted-*` and `missing-public-timing` identify data the addon cannot use; `expired-window` means the configured continuation has ended.
+- Support **Consecration** as an AoE DoT with 1- and 4-target totals, effective duration DPS, cast/GCD output and efficiency. Include Forever's additional damage to the first four enemies. Each target is assumed to remain in the area for the full duration; caps apply to individual components.
+- Give seals separate **Seal buff (full duration)** and **Judgement (one cast)** sections. Buff totals describe the seal's added output, using the current main-hand swing interval across its full duration, assuming all auto attacks land and excluding extra attacks. Judgement uses its own current spell cost and timing; its section does not consume or shorten the seal's assumed uptime. Command's normal Judgement assumes an unstunned target.
+- Fury uses its displayed per-hit damage. Righteousness uses a pinned Forever rank/level/weapon/spell-power model rather than averaging its generic weapon-speed range; Improved Seals is included when its committed talent rank is readable, otherwise its bonus is explicitly excluded. Command applies its displayed weapon percentage to current weapon damage plus 29% of the player's Holy spell power, with a disclosed 7 base procs/min model. Proc chance uses base weapon delay and attack frequency uses the current swing interval. Its 1-second proc cooldown limits the estimated steady-state rate when swings are faster than one second. Target-only spell-power bonuses and unexposed Holy damage multipliers are excluded. Non-damage seals and unresolvable proc effects show why damage/healing rates are unavailable.
+- Support explicit weapon-damage expressions. Holy Strike uses Forever's `percentage × (normalized weapon damage + flat bonus)` rule, current main-hand damage, attack power and the equipped item's base delay. Normalized delays are 1.7 s for daggers, 3.3 s for two-handed weapons and 2.4 s for other melee weapons. Physical-only damage multipliers are removed before the Holy conversion. Other explicit weapon expressions remain labelled estimates when their special normalization is unknown. Missing/private weapon data is not substituted with guessed numbers.
+- Visible spell tooltips also refresh after player attack-speed, damage and attack-power changes, with the existing coalesced refresh and bounded text cache. Existing settings are preserved. Include **SpellSealModels.lua** when updating, then `/reload`.
+
+Focused parser, tooltip/runtime, weapon/model and expiry regressions cover natural versus early removal, coalesced events, restricted data, combat/encounter transitions, independent seal/Judgement costs, current weapon changes, English/French wording and per-component AoE caps. Actual client rendering and live spell amounts still need an in-game check.
+
+Model and API references are pinned to [Forever UI 1.60.1/70291](https://github.com/Gethe/wow-ui-source/tree/9465cb273b5513495d8ecc12fbb19930dd6b8957), including the native PaperDoll and aura update handling, and the current Forever simulation's [Holy Strike](https://github.com/ElliotWood/Forever/blob/56c11f4e2bc69caa5d7995aaf0ffb0e68466c730/sim/paladin/holy_strike.go), [Righteousness](https://github.com/ElliotWood/Forever/blob/56c11f4e2bc69caa5d7995aaf0ffb0e68466c730/sim/paladin/seal_of_righteousness.go), [Command](https://github.com/ElliotWood/Forever/blob/56c11f4e2bc69caa5d7995aaf0ffb0e68466c730/sim/paladin/seal_of_command.go) and [Consecration](https://github.com/ElliotWood/Forever/blob/56c11f4e2bc69caa5d7995aaf0ffb0e68466c730/sim/paladin/consecration.go). These are disclosed model estimates rather than measured combat DPS.
 
 ## Changes in 1.17.0
 

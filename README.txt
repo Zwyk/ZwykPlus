@@ -1,4 +1,4 @@
-ZwykPlus 1.17.0 - WoW Forever
+ZwykPlus 1.18.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,41 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITIONS IN 1.18.0
+Fix intermittent post-expiry glows caused by unrelated buff events and by
+combat/encounter transitions. Only validated public buff history can show
+the reminder. Early removals suppress it; restricted data clears history.
+/zp buffs now prints armed/active timers and discard reasons. If the issue
+persists, run it shortly before and after expiry and share both outputs.
+
+Consecration shows 1- and 4-target damage, duration DPS, cast/GCD output and
+efficiency, including its bonus to the first four enemies. Targets remain
+inside the area for its whole duration.
+
+Seals have separate full-duration buff and one-cast Judgement sections,
+using their respective costs. Buff totals include added seal output only,
+with current swing speed and all auto attacks landing; extra attacks are
+excluded. Fury uses native per-hit output. Righteousness uses a current
+Forever rank/level/base-weapon-delay/Holy spell-power model, including the
+readable committed Improved Seals rank. An unavailable rank excludes its
+bonus explicitly. Command uses the native weapon percentage and a stated
+7 base procs/min model, adjusted for base delay and current swing interval.
+Its native percentage applies to weapon damage plus 29% of player Holy
+spell power. Target-only power bonuses and unexposed Holy multipliers are
+excluded. Its 1s proc cooldown limits the steady-state rate under extreme
+haste. Command Judgement assumes an
+unstunned target. Unsupported non-damage/proc effects explain omissions.
+
+Holy Strike and explicit weapon damage expressions are supported. Holy
+Strike uses percentage*(normalized weapon damage+flat bonus), with current
+AP and base weapon delay; physical-only modifiers are removed for its Holy
+conversion. Generic weapon expressions disclose unknown normalization.
+Weapon changes refresh visible tooltips; inaccessible stats are omitted.
+Include SpellSealModels.lua when updating, then /reload. Existing settings
+are preserved. Focused parser/runtime/model/expiry checks pass; native
+display and actual spell amounts need an in-game check. README.md has the
+pinned source references and full assumptions.
 
 ADDITIONS IN 1.17.0
 Auras > Spell DPS/HPS and efficiency starts enabled. Supported EN/FR native
