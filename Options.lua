@@ -6,6 +6,7 @@ local pages, tabs = {}, {}
 local pageHeading
 local reloadNote
 local diagnosticsWindow, diagnosticsText, diagnosticsMeasure
+local diagnosticsHeading, diagnosticsHelp, diagnosticsProvider, diagnosticsTitle
 local portraitWindow
 local buffReminderWindow
 local questTargetWindow, questMarkerSelector
@@ -679,8 +680,8 @@ local function BuildOptions()
 end
 
 local function RefreshPortraitReport()
-    local lines = ZP.GetPortraitDiagnostics and ZP:GetPortraitDiagnostics() or {L.portraitReportMissing}
-    table.insert(lines, 1, "ZwykPlus " .. ZP.version .. " - " .. L.portraitDiagnostics)
+    local lines = diagnosticsProvider and diagnosticsProvider() or {L.portraitReportMissing}
+    table.insert(lines, 1, "ZwykPlus " .. ZP.version .. " - " .. (diagnosticsTitle or L.portraitDiagnostics))
     local text = table.concat(lines, "\n")
     diagnosticsMeasure:SetText(text)
     diagnosticsText:SetHeight(math.max(270, diagnosticsMeasure:GetStringHeight() + 24))
@@ -688,7 +689,8 @@ local function RefreshPortraitReport()
     diagnosticsText:HighlightText()
 end
 
-function ZP:ShowPortraitDiagnostics()
+function ZP:ShowDiagnostics(title, help, provider, reportName)
+    diagnosticsTitle, diagnosticsProvider = reportName or title, provider
     if not diagnosticsWindow then
         local report = CreateFrame("Frame", "ZwykPlusPortraitDiagnostics", UIParent, "BackdropTemplate")
         report:SetSize(620, 420)
@@ -703,8 +705,8 @@ function ZP:ShowPortraitDiagnostics()
         report:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
             tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
         report:SetBackdropColor(0.045, 0.04, 0.025, 1)
-        Label(report, L.portraitReportTitle, 24, -20, 545, "GameFontNormalLarge")
-        Label(report, L.portraitReportHelp, 24, -50, 565)
+        diagnosticsHeading = Label(report, title, 24, -20, 545, "GameFontNormalLarge")
+        diagnosticsHelp = Label(report, help, 24, -50, 565)
         local closeIcon = CreateFrame("Button", nil, report, "UIPanelCloseButton")
         closeIcon:SetPoint("TOPRIGHT", -6, -6)
         closeIcon:SetScript("OnClick", function() report:Hide() end)
@@ -735,10 +737,18 @@ function ZP:ShowPortraitDiagnostics()
         UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusPortraitDiagnostics"
         diagnosticsWindow = report
     end
+    diagnosticsHeading:SetText(title)
+    diagnosticsHelp:SetText(help)
     RefreshPortraitReport()
     diagnosticsWindow:Show()
     diagnosticsText:SetFocus()
     diagnosticsText:HighlightText()
+end
+
+function ZP:ShowPortraitDiagnostics()
+    self:ShowDiagnostics(L.portraitReportTitle, L.portraitReportHelp, function()
+        return self.GetPortraitDiagnostics and self:GetPortraitDiagnostics() or {L.portraitReportMissing}
+    end, L.portraitDiagnostics)
 end
 
 function ZP:ToggleOptions()

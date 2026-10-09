@@ -3,6 +3,7 @@ local L = ZP.L
 local records = setmetatable({}, {__mode = "k"})
 local initialized, rebuilding, refreshQueued = false, false, false
 local parsedCache, cacheCount, requested = {}, 0, {}
+local lastSpellID
 local unpackArgs = unpack or table.unpack
 
 local function Readable(value)
@@ -88,6 +89,10 @@ function ZP:ResolveSpellMetrics(metrics, weapon)
                 average = average + weapon.holySpellPower * 0.29
             end
             total = average * source.weaponCoefficient + (Number(source.flatBonus) and source.flatBonus or 0)
+            if Readable(metrics.holyStrike) and metrics.holyStrike == true then
+                result.weaponContribution = average * source.weaponCoefficient
+                result.flatContribution = Number(source.flatBonus) and source.flatBonus or 0
+            end
             result.weaponEstimate = not normalized and not (Readable(source.holyWeapon) and source.holyWeapon == true)
         elseif Number(source.weaponDPSCoefficient) then
             if not Number(weapon.damage) or not Number(weapon.baseSpeed) or weapon.baseSpeed <= 0 then return nil, "weapon" end
@@ -132,6 +137,7 @@ function ZP:CalculateSpellMetrics(metrics, info, costs, timing)
         weaponSpeed = metrics.weaponSpeed, sealAttacks = metrics.sealAttacks,
         conditional = metrics.conditional, partialEffects = metrics.partialEffects,
         modelEstimate = metrics.modelEstimate, modelTalentsUnknown = metrics.modelTalentsUnknown, procModel = metrics.procModel}
+    report.holyStrike, report.weaponContribution, report.flatContribution = metrics.holyStrike, metrics.weaponContribution, metrics.flatContribution
     local duration = Number(metrics.duration) and metrics.duration > 0 and metrics.duration or nil
     local channel = Readable(metrics.channel) and metrics.channel == true
         or Readable(timing.channel) and timing.channel == true
@@ -226,6 +232,10 @@ local function AddReport(tooltip, report, section)
     end
     Row("spellMetricsDamage", one.damage, four and four.damage)
     Row("spellMetricsHealing", one.healing, four and four.healing)
+    if report.holyStrike and Number(report.weaponContribution) and Number(report.flatContribution)
+        and String(L.spellMetricsHolyStrikeBreakdown) then
+        tooltip:AddLine(string.format(L.spellMetricsHolyStrikeBreakdown, Format(report.weaponContribution), Format(report.flatContribution)), 0.7, 0.7, 0.7, true)
+    end
     Row("spellMetricsEffectiveDPS", one.effectiveDPS, four and four.effectiveDPS)
     Row("spellMetricsEffectiveHPS", one.effectiveHPS, four and four.effectiveHPS)
     Row("spellMetricsCastDPS", one.dps, four and four.dps)
@@ -245,6 +255,7 @@ local function AddReport(tooltip, report, section)
     end
     if report.groundArea then tooltip:AddLine(L.spellMetricsGroundAssumption, 0.7, 0.7, 0.7, true) end
     if report.weaponEstimate then tooltip:AddLine(L.spellMetricsWeaponEstimate, 0.7, 0.7, 0.7, true) end
+    if report.holyStrike and String(L.spellMetricsHolyStrikeModel) then tooltip:AddLine(L.spellMetricsHolyStrikeModel, 0.7, 0.7, 0.7, true) end
     if report.conditional == "unstunned" then tooltip:AddLine(L.spellMetricsUnstunned, 0.7, 0.7, 0.7, true) end
     if report.partialEffects then tooltip:AddLine(L.spellMetricsPartialEffects, 0.7, 0.7, 0.7, true) end
     if report.modelEstimate then tooltip:AddLine(L.spellMetricsSealModel, 0.7, 0.7, 0.7, true) end
@@ -285,21 +296,27 @@ function ZP:GetSpellWeaponContext(needDamage)
     if Number(power) then weapon.holySpellPower = power end
     local link = Call(GetInventoryItemLink, "player", 16)
     if not String(link) or not UnitDamage then return weapon end
-    local ok, low, high, _, _, _, _, multiplier = pcall(UnitDamage, "player")
+    local ok, low, high, _, _, positiveDamage, negativeDamage, multiplier = pcall(UnitDamage, "player")
     if not ok or not Number(low) or not Number(high) or high < low then return weapon end
     -- UnitDamage already includes attack power, flat buffs and multipliers.
     weapon.damage = (low + high) / 2
+    weapon.low, weapon.high = low, high
+    if Readable(positiveDamage) and type(positiveDamage) == "number" then weapon.positiveDamage = positiveDamage end
+    if Readable(negativeDamage) and type(negativeDamage) == "number" then weapon.negativeDamage = negativeDamage end
+    if Number(multiplier) then weapon.multiplier = multiplier end
     if Number(multiplier) and multiplier > 0 then weapon.holyDamage = weapon.damage / multiplier end
     if not Number(multiplier) or multiplier <= 0 then return weapon end
     local itemAPI = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
     if type(itemAPI) ~= "function" then return weapon end
     local itemOK, _, _, _, location, _, class, subclass = pcall(itemAPI, link)
     if not itemOK or not Readable(location) or not Number(class) or not Number(subclass) or class ~= 2 then return weapon end
+    weapon.itemLink, weapon.itemLocation, weapon.itemSubclass = link, location, subclass
     local normalizedSpeed
     if subclass == 15 then normalizedSpeed = 1.7
     elseif location == "INVTYPE_2HWEAPON" then normalizedSpeed = 3.3
     elseif location == "INVTYPE_WEAPON" or location == "INVTYPE_WEAPONMAINHAND" then normalizedSpeed = 2.4 end
     if not normalizedSpeed then return weapon end
+    weapon.normalizedSpeed = normalizedSpeed
     weapon.twoHand = location == "INVTYPE_2HWEAPON"
     -- Equipped item tooltip speed is the base weapon delay. UnitAttackSpeed is
     -- hasted and must not be used to remove the weapon's AP contribution.
@@ -327,6 +344,7 @@ function ZP:GetSpellWeaponContext(needDamage)
     if not powerOK or not Signed(base) or not Signed(positive) or not Signed(negative) then return weapon end
     local attackPower = base + positive + negative
     if attackPower < 0 then return weapon end
+    weapon.attackPower, weapon.baseAttackPower, weapon.positiveAttackPower, weapon.negativeAttackPower = attackPower, base, positive, negative
     -- Holy Strike converts normalized weapon output to Holy damage; a physical
     -- damage-only multiplier on the character-sheet hit must not carry over.
     local average = weapon.damage / multiplier + attackPower / 14 * (normalizedSpeed - baseSpeed)
@@ -408,6 +426,106 @@ local function NeedsWeaponDamage(metrics)
     return false
 end
 
+-- On-demand diagnostics use the same public inputs as the tooltip calculation.
+-- Never stringify inaccessible values, including individual cost/tooltip fields.
+function ZP:GetSpellMetricsDiagnostics(spellID)
+    local id = spellID
+    if Readable(id) and id == nil then id = lastSpellID or 10333 end
+    local lines = {}
+    local function Text(value)
+        if not Readable(value) then return "private" end
+        if value == nil then return "unavailable" end
+        if type(value) == "number" then
+            if value ~= value or math.abs(value) >= 1e12 then return "invalid" end
+            return string.format("%.8g", value)
+        end
+        if type(value) == "boolean" then return value and "yes" or "no" end
+        if type(value) ~= "string" then return "unavailable" end
+        return value:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("[\r\n]", " "):sub(1, 2400)
+    end
+    local function Line(key, value) lines[#lines + 1] = key .. "=" .. Text(value) end
+    if not ID(id) then Line("spellID", id); return lines end
+    local info = SpellInfo(id)
+    Line("spellID", id)
+    if Table(info) then
+        Line("name", info.name)
+        Line("castTimeMs", info.castTime)
+    else Line("name", nil); Line("castTimeMs", nil) end
+    Line("gcdReferenceSeconds", GCD(id))
+    local data
+    if Public(GameTooltip) then
+        local current = Call(GameTooltip.GetTooltipData, GameTooltip)
+        if Table(current) and ID(current.id) and current.id == id and Readable(current.type)
+            and Enum and Enum.TooltipDataType and current.type == Enum.TooltipDataType.Spell then data = current end
+    end
+    local nativeKnown = true
+    if data == nil and C_TooltipInfo and C_TooltipInfo.GetSpellByID then data, nativeKnown = Call(C_TooltipInfo.GetSpellByID, id) end
+    local description, channel
+    if nativeKnown then description, channel = Description(data, id) end
+    Line("nativeDescription", description)
+    local apiDescription
+    if C_Spell and C_Spell.GetSpellDescription then apiDescription = Call(C_Spell.GetSpellDescription, id)
+    else apiDescription = Call(GetSpellDescription, id) end
+    Line("apiDescription", apiDescription)
+    local metrics = Table(info) and String(description) and Parse(description, id, info.name)
+    Line("parsed", Table(metrics))
+    local weapon = self:GetSpellWeaponContext(true)
+    for _, key in ipairs({"itemLink", "itemLocation", "itemSubclass", "low", "high", "positiveDamage", "negativeDamage", "multiplier",
+        "damage", "holyDamage", "speed", "baseSpeed", "normalizedSpeed", "baseAttackPower", "positiveAttackPower", "negativeAttackPower",
+        "attackPower", "holySpellPower", "normalizedDamage"}) do Line("weapon." .. key, weapon[key]) end
+    local costs = Costs(id)
+    if Table(costs) then
+        for index, cost in ipairs(costs) do
+            if index > 8 then break end
+            if Table(cost) then
+                for _, key in ipairs({"name", "type", "cost", "minCost", "costPercent", "costPerSec", "requiredAuraID", "hasRequiredAura"}) do
+                    Line("cost" .. index .. "." .. key, cost[key])
+                end
+            else Line("cost" .. index, cost) end
+        end
+        if next(costs) == nil then Line("costs", "empty (free)") end
+    else Line("costs", costs) end
+    if not Table(metrics) then return lines end
+    local function Output(part, label, partID, partInfo)
+        if not Table(part) then return end
+        if Table(part.components) then
+            for index, component in ipairs(part.components) do
+                if index > 8 then break end
+                if Table(component) then
+                    for _, key in ipairs({"kind", "weaponCoefficient", "nativeFlatBonus", "flatBonus", "normalizedWeapon", "total", "duration"}) do
+                        Line(label .. ".component" .. index .. "." .. key, component[key])
+                    end
+                    if Readable(part.holyStrike) and part.holyStrike == true and Number(weapon.normalizedDamage)
+                        and Number(component.weaponCoefficient) and Number(component.nativeFlatBonus) then
+                        Line(label .. ".literalTooltipAlternative", weapon.normalizedDamage * component.weaponCoefficient + component.nativeFlatBonus)
+                    end
+                end
+            end
+        end
+        local resolved, reason = self:ResolveSpellMetrics(part, weapon)
+        Line(label .. ".resolveReason", reason or "ok")
+        local report = resolved and self:CalculateSpellMetrics(resolved, partInfo or {}, Costs(partID), {channel = channel, gcdSeconds = GCD(partID)})
+        if not Table(report) then Line(label .. ".report", "unavailable"); return end
+        for _, key in ipairs({"damage", "healing", "weaponContribution", "flatContribution", "castSeconds", "damageDuration", "healingDuration"}) do
+            Line(label .. "." .. key, report[key])
+        end
+        for _, target in ipairs(report.perTarget) do
+            for _, key in ipairs({"damage", "healing", "dps", "hps", "effectiveDPS", "effectiveHPS"}) do
+                if target[key] ~= nil then Line(label .. ".targets" .. target.targets .. "." .. key, target[key]) end
+            end
+        end
+    end
+    if Table(metrics.sections) then
+        for _, section in ipairs(metrics.sections) do
+            if Table(section) and String(section.kind) and (section.kind == "seal" or section.kind == "judgement") then
+                local partID = section.kind == "judgement" and 20271 or id
+                Output(section.metrics, section.kind, partID, SpellInfo(partID))
+            end
+        end
+    else Output(metrics, "output", id, info) end
+    return lines
+end
+
 local HookTooltip
 local function Handle(tooltip, data, sourceID)
     if not Public(tooltip) then return end
@@ -422,6 +540,7 @@ local function Handle(tooltip, data, sourceID)
     local id = sourceID
     if Table(data) then id = data.id end
     if not ID(id) then return end
+    lastSpellID = id
     local spell = SpellInfo(id)
     if not spell then
         if not requested[id] and C_Spell and C_Spell.RequestLoadSpellData then

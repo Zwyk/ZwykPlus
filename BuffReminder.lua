@@ -4,6 +4,8 @@ local curveRed, curveGreen, curveBlue, curveOpacity
 local buttons, records, mappedFamilies = {}, {}, {}
 local expiryHistory, historyValidated, removedAt = {}, false, {}
 local expiryDiscardCounts, expiryLastReason, expiryLastSpellID, expiryLastRemaining = {}, nil, nil, nil
+local expiryLastRemovalRemaining, expiryNearRemovalSpellID, expiryNearRemovalRemaining
+local expiryNearRemovalCount, expiryRemovalTolerance = 0, 0.2
 local elapsed, scanElapsed = 0, 0
 local scanStatus = "disabled"
 
@@ -85,13 +87,14 @@ local function Appearance(after)
     return after and "button" or "pixel", 1, 0.78, 0.12, 1
 end
 
-local function DropHistory(family, reason)
+local function DropHistory(family, reason, removalTime)
     local history = expiryHistory[family]
     if not history then return end
     expiryHistory[family] = nil
     expiryDiscardCounts[reason] = (expiryDiscardCounts[reason] or 0) + 1
     expiryLastReason, expiryLastSpellID = reason, history.spellID
     expiryLastRemaining = history.expires - GetTime()
+    expiryLastRemovalRemaining = removalTime and history.expires - removalTime or nil
 end
 
 local function DropAllHistory(reason)
@@ -108,7 +111,12 @@ local function Clear(discardHistory, reason)
     for _, entry in pairs(buttons) do
         pcall(entry.texture.SetAlpha, entry.texture, 0)
         pcall(entry.texture.Hide, entry.texture)
-        if entry.wrapper then pcall(entry.wrapper.Hide, entry.wrapper) end
+        -- Native aura visibility remains current even when the public scan is
+        -- restricted. Keep its animation parent stable across ordinary scans.
+        if entry.wrapper and not (Enabled() and entry.nativeReady and entry.nativeGlowReady and not previewUntil) then
+            pcall(entry.wrapper.Hide, entry.wrapper)
+            entry.nativeWasShown = false
+        end
     end
 end
 
@@ -173,21 +181,31 @@ local function NativeReady()
 end
 
 local function ConfigureNative(button, entry)
+    local wasReady = entry.nativeReady and entry.nativeFamily == entry.family and entry.container ~= nil
     entry.nativeReady, entry.nativePending = false, false
     if not entry.family or not NativeReady() then return end
+    local style, red, green, blue, opacity = Appearance(false)
     if entry.nativeFamily == entry.family and entry.nativeThreshold == threshold
-        and entry.nativeColorCurve == colorCurve and entry.container then
+        and entry.nativeColorCurve == colorCurve and entry.nativeStyle == style and entry.container then
         entry.nativeReady = pcall(entry.container.SetEnabled, entry.container, true)
         return
     end
-    if InCombat() then entry.nativePending = true; return end
+    if InCombat() then
+        -- Appearance/filter rebinding waits for combat to end; a valid renderer
+        -- for the same spell family can keep using its previous configuration.
+        entry.nativeReady, entry.nativePending = wasReady or false, true
+        return
+    end
     if entry.nativeFailed then return end
     local ok = pcall(function()
         if not entry.wrapper then
             -- Parent the renderer to our own frame, not the protected action bar.
             local wrapper = CreateFrame("Frame", nil, UIParent)
-            wrapper:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
-            wrapper:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
+            local icon = button.icon
+            if Readable(icon) and icon == nil then icon = button.Icon end
+            if not Readable(icon) or not icon or type(icon.GetObjectType) ~= "function" then icon = button end
+            wrapper:SetPoint("TOPLEFT", icon, "TOPLEFT", 0, 0)
+            wrapper:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
             wrapper:SetFrameLevel(button:GetFrameLevel() + 8)
             wrapper:SetFrameStrata(button:GetFrameStrata())
             wrapper:EnableMouse(false)
@@ -207,6 +225,27 @@ local function ConfigureNative(button, entry)
             textFormat = {formatString = "!", components = {}},
             textColor = {curve = colorCurve, property = Enum.DurationTextBindingProperty.RemainingPercent},
         }
+        local function ConfigureGlow(frame)
+            entry.nativeGlowReady, entry.nativeGlowError = false, nil
+            if type(ZP.ConfigureBuffNativeGlow) == "function" then
+                local glowOK, ready, reason = pcall(ZP.ConfigureBuffNativeGlow, ZP, frame, button,
+                    threshold, style, red, green, blue, opacity)
+                entry.nativeGlowReady = glowOK and Readable(ready) and ready == true
+                if not entry.nativeGlowReady then
+                    local failure = glowOK and reason or ready
+                    if Readable(failure) and type(failure) == "string" then entry.nativeGlowError = failure end
+                end
+            end
+            if entry.nativeGlowReady and type(frame.ClearDurationText) == "function" then
+                frame:ClearDurationText()
+                pcall(entry.nativeText.Hide, entry.nativeText)
+                -- No secret text/alpha is read; the native animated renderer
+                -- replaces the old text fallback for this configured slot.
+            else
+                pcall(entry.nativeText.Show, entry.nativeText)
+                frame:SetDurationText(entry.nativeText, options)
+            end
+        end
         if not entry.nativeFrame then
             entry.nativeFrame = entry.container:AddAuraSlot("reminder", "HELPFUL", {
                 -- A non-nil duration filter also excludes permanent auras in
@@ -221,18 +260,19 @@ local function ConfigureNative(button, entry)
                     text:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 24, "OUTLINE")
                     text:SetTextColor(curveRed, curveGreen, curveBlue, 0)
                     entry.nativeText = text
-                    frame:SetDurationText(text, options)
+                    ConfigureGlow(frame)
                 end,
             })
         else
             entry.container:SetAuraSlotCandidateFilters("reminder", {includeSpellIDs = ids, maxDuration = math.huge})
-            entry.nativeFrame:SetDurationText(entry.nativeText, options)
+            ConfigureGlow(entry.nativeFrame)
         end
         entry.container:SetEnabled(true)
     end)
     entry.nativeFailed = not ok
     if ok then
         entry.nativeFamily, entry.nativeThreshold, entry.nativeColorCurve = entry.family, threshold, colorCurve
+        entry.nativeStyle = style
         entry.nativeReady = true
     else
         if entry.wrapper then pcall(entry.wrapper.Hide, entry.wrapper) end
@@ -353,12 +393,23 @@ local function ScanAuras()
     end
     for family, history in pairs(expiryHistory) do
         local finish = history.expires + history.total * after
-        -- The queued scan can straddle expiry. A removal already observed
-        -- before expiry must not turn into a natural-expiration reminder.
-        if not seen[family] and (removals[family] or now) < history.expires then
-            DropHistory(family, "early-removal")
+        -- Aura removal can precede its public expiration clock by a few ms.
+        -- Allow one render interval; still begin the glow at the original
+        -- expiration time. Cancels in this narrow window are indistinguishable
+        -- from natural expiry, while genuinely early removal stays suppressed.
+        local removalTime = not seen[family] and (history.removedAt or removals[family] or now)
+        local removalRemaining = removalTime and history.expires - removalTime
+        if removalTime and removalTime < history.expires - expiryRemovalTolerance then
+            DropHistory(family, "early-removal", removalTime)
         elseif not Number(finish) or now >= finish then
             DropHistory(family, "expired-window")
+        elseif removalTime then
+            history.removedAt = removalTime
+            if removalRemaining > 0 and not history.nearExpiryRemoval then
+                history.nearExpiryRemoval = true
+                expiryNearRemovalCount = expiryNearRemovalCount + 1
+                expiryNearRemovalSpellID, expiryNearRemovalRemaining = history.spellID, removalRemaining
+            end
         end
     end
     historyValidated = true
@@ -383,18 +434,20 @@ local function Render()
             visible = shown and Readable(value) and value == true
         end
         local after = Enabled() and AfterExpiry(entry.family, now)
+        local nativeBefore = not preview and not after and entry.nativeReady and entry.nativeGlowReady
         local style, red, green, blue, opacity = Appearance(preview and previewAfter or not preview and after)
         local appearanceOK, applied = pcall(entry.texture.SetReminderAppearance, entry.texture, style, red, green, blue, opacity)
         appearanceOK = appearanceOK and applied ~= false
         -- Visibility is public configuration/button state, never curve alpha.
         pcall(entry.texture.SetShown, entry.texture,
-            appearanceOK and ((preview and entry.family) or (Enabled() and record) or after) and public and visible or false)
+            appearanceOK and ((preview and entry.family) or (Enabled() and record and not nativeBefore) or after)
+                and public and visible or false)
         local ok = false
         if preview and entry.family and public then
             ok = pcall(entry.texture.SetAlpha, entry.texture, 1)
         elseif public and after then
             ok = pcall(entry.texture.SetAlpha, entry.texture, 1)
-        elseif Enabled() and record and public then
+        elseif Enabled() and record and public and not nativeBefore then
             if record.duration and curve then
                 local evaluated, alpha = pcall(record.duration.EvaluateRemainingPercent, record.duration, curve)
                 -- The curve output may be secret. Pass it only to the rendering
@@ -409,9 +462,19 @@ local function Render()
         if not ok then pcall(entry.texture.SetAlpha, entry.texture, 0) end
         if entry.wrapper then
             -- This visibility follows only public button/configuration state.
-            -- The native binding alone decides when a private aura's ! appears.
-            pcall(entry.wrapper.SetShown, entry.wrapper,
-                not preview and Enabled() and entry.family and public and entry.nativeReady and visible or false)
+            -- The native engine owns all pre-expiry visibility when available,
+            -- including out of combat, so its animation parent stays stable.
+            local shown = not preview and not after and (entry.nativeGlowReady or not (Enabled() and record and appearanceOK and ok))
+                and Enabled() and entry.family and public and entry.nativeReady and visible or false
+            pcall(entry.wrapper.SetShown, entry.wrapper, shown)
+            if shown and not entry.nativeWasShown and entry.nativeGlowReady and type(ZP.ResumeBuffNativeGlow) == "function" then
+                local resumed, ready, reason = pcall(ZP.ResumeBuffNativeGlow, ZP, entry.nativeFrame)
+                if not resumed or ready == false then
+                    local failure = resumed and reason or ready
+                    if Readable(failure) and type(failure) == "string" then entry.nativeGlowError = failure end
+                end
+            end
+            entry.nativeWasShown = shown
         end
     end
 end
@@ -483,10 +546,14 @@ function ZP:GetBuffReminderDiagnostics()
     local result = {enabled = Enabled(), percent = (threshold or 0.2) * 100,
         afterPercent = AfterFraction() * 100, mappedButtons = 0,
         publicAuras = 0, timingAvailable = 0, status = scanStatus, publicScanStatus = scanStatus, engineConfigured = 0,
-        enginePending = 0, engineFailed = 0, previewActive = previewUntil ~= nil,
+        enginePending = 0, engineFailed = 0, nativeGlows = 0, nativeGlowFallbacks = 0,
+        nativeGlowLastError = nil, previewActive = previewUntil ~= nil,
         publicTimedAuras = 0, postExpiryTimers = 0, postExpiryActive = 0,
         historyValidated = historyValidated, expiryLastReason = expiryLastReason,
         expiryLastSpellID = expiryLastSpellID, expiryLastRemaining = expiryLastRemaining,
+        expiryLastRemovalRemaining = expiryLastRemovalRemaining, expiryRemovalTolerance = expiryRemovalTolerance,
+        expiryNearRemovalCount = expiryNearRemovalCount, expiryNearRemovalSpellID = expiryNearRemovalSpellID,
+        expiryNearRemovalRemaining = expiryNearRemovalRemaining,
         expiryDiscardCounts = {}}
     for _, entry in pairs(buttons) do
         if entry.family then
@@ -494,6 +561,13 @@ function ZP:GetBuffReminderDiagnostics()
             if entry.nativeReady then result.engineConfigured = result.engineConfigured + 1 end
             if entry.nativePending then result.enginePending = result.enginePending + 1 end
             if entry.nativeFailed then result.engineFailed = result.engineFailed + 1 end
+            if entry.nativeReady then
+                if entry.nativeGlowReady then result.nativeGlows = result.nativeGlows + 1
+                else
+                    result.nativeGlowFallbacks = result.nativeGlowFallbacks + 1
+                    result.nativeGlowLastError = entry.nativeGlowError or result.nativeGlowLastError
+                end
+            end
         end
     end
     for _, record in pairs(records) do

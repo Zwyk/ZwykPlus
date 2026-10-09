@@ -430,11 +430,12 @@ local function Weapon(text, context, french)
     elseif not tail:match("^[%s%p]*$") and not tail:match("^%s+to the target[%s%p]*$")
         and not DamageTail(tail) then return nil end
     local holyStrike = IsHolyStrike(context)
+    local nativeFlat = flat
     if holyStrike then flat = flat * coefficient end
     local area = Area(text) ~= nil
     return {components = {{kind = "damage", weaponCoefficient = coefficient, flatBonus = flat,
-        normalizedWeapon = holyStrike and true or "unknown", aoe = area, overtime = false}},
-        aoe = area, overtime = false, hasDirect = true, weaponEstimate = true}
+        nativeFlatBonus = nativeFlat, normalizedWeapon = holyStrike and true or "unknown", aoe = area, overtime = false}},
+        aoe = area, overtime = false, hasDirect = true, weaponEstimate = true, holyStrike = holyStrike}
 end
 
 local function GroundArea(text, context)

@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.18.0"
+ZP.version = "1.19.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -390,15 +390,35 @@ function ZP:ShowBuffReminderDiagnostics()
         report.publicScanStatus or "?"))
     print(string.format(L.buffReminderDiagnosticEngine, report.engineConfigured or 0, report.enginePending or 0,
         report.engineFailed or 0))
+    print(string.format(L.buffReminderDiagnosticNativeGlow, report.nativeGlows or 0, report.nativeGlowFallbacks or 0,
+        report.nativeGlowLastError or "--"))
     print(string.format(L.buffReminderDiagnosticExpiry, report.publicTimedAuras or 0, report.postExpiryTimers or 0,
         report.postExpiryActive or 0, report.historyValidated and L.yes or L.no))
     print(string.format(L.buffReminderDiagnosticDiscard, report.expiryLastReason or "--",
         report.expiryLastSpellID and tostring(report.expiryLastSpellID) or "--",
         report.expiryLastRemaining and string.format("%.2f", report.expiryLastRemaining) or "--"))
+    print(string.format(L.buffReminderDiagnosticRemoval, report.expiryLastRemovalRemaining
+        and string.format("%.3f", report.expiryLastRemovalRemaining) or "--", report.expiryRemovalTolerance or 0.2))
+    print(string.format(L.buffReminderDiagnosticNearExpiry, report.expiryNearRemovalCount or 0,
+        report.expiryNearRemovalSpellID and tostring(report.expiryNearRemovalSpellID) or "--",
+        report.expiryNearRemovalRemaining and string.format("%.3f", report.expiryNearRemovalRemaining) or "--"))
     local counts = {}
     for reason, count in pairs(report.expiryDiscardCounts or {}) do counts[#counts + 1] = reason .. "=" .. count end
     table.sort(counts)
     print(string.format(L.buffReminderDiagnosticCounts, #counts > 0 and table.concat(counts, "; ") or "--"))
+end
+
+function ZP:ShowSpellMetricsDiagnostics(id)
+    local lines = self.GetSpellMetricsDiagnostics and self:GetSpellMetricsDiagnostics(id) or {L.spellMetricsUnsupported_unavailable}
+    local resolvedID = lines[1] and tonumber(lines[1]:match("^spellID=(%d+)$")) or id
+    if self.ShowDiagnostics then
+        self:ShowDiagnostics(L.spellMetricsDiagnostics, L.spellMetricsDiagnosticsHelp, function()
+            return self.GetSpellMetricsDiagnostics and self:GetSpellMetricsDiagnostics(resolvedID) or lines
+        end)
+    else
+        print("|cffffcc66ZwykPlus " .. self.version .. " - " .. L.spellMetricsDiagnostics .. "|r")
+        for _, line in ipairs(lines) do print(line) end
+    end
 end
 
 function ZP:TestBuffReminder(after)
@@ -408,7 +428,10 @@ end
 
 SlashCmdList.ZWYKPLUS = function(message)
     local command = type(message) == "string" and message:lower():match("^%s*(.-)%s*$") or ""
-    if command == "portraits" or command == "debug portraits" then
+    local spellID = command:match("^spell%s+(%d+)$") or command:match("^debug spell%s+(%d+)$")
+    if command == "spell" or command == "debug spell" or spellID then
+        ZP:ShowSpellMetricsDiagnostics(spellID and tonumber(spellID))
+    elseif command == "portraits" or command == "debug portraits" then
         if ZP.ShowPortraitDiagnostics then ZP:ShowPortraitDiagnostics() end
     elseif command == "healers" then
         if ZP.ShowHealerManaMembers then ZP:ShowHealerManaMembers() end

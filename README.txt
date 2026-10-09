@@ -1,4 +1,4 @@
-ZwykPlus 1.18.0 - WoW Forever
+ZwykPlus 1.19.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,34 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITIONS IN 1.19.0
+Fix after-expiration removals occurring 0.03-0.05s before their public timer.
+The final 0.2s is tolerated; the glow starts at the recorded expiry and keeps
+its configured duration. Clearly early removal cancels it. A manual cancel
+in the final 0.2s may look like natural expiry and also starts the reminder.
+
+Before-expiry glows now use native aura timer bars and registered client
+animations in and out of combat, without reading private timing/geometry.
+The configured percentage, color, opacity and selected style apply. Native
+Pixel/Autocast/Button/Proc effects approximate the public glow visuals.
+Missing native capabilities retain the text/public-renderer fallback.
+Appearance changes in combat keep the old valid configuration until they
+can be applied. After-expiry still requires readable public buff timers.
+/zp buffs prints native setup status, removal/scan timing and tolerance.
+
+Holy Strike already included normalized weapon plus additional Holy damage.
+The tooltip now shows their actual calculated contributions. The disclosed
+simulation formula remains percentage*(normalized weapon+native flat bonus).
+Hover Holy Strike then use /zp spell for a copyable/refreshable diagnostic
+window: actual tooltip text, weapon/AP/SP inputs, cost and contributions,
+plus the literal-text alternative percentage*weapon+full flat bonus.
+/zp spell ID selects an explicit spell. Private data stays inaccessible.
+
+Include BuffNativeGlow.lua and /reload. Existing settings remain preserved.
+Focused timing/native-renderer/diagnostic tests pass; in-game combat visuals
+and a noncritical Holy Strike hit still need checking. README.md contains
+the primary API and addon references.
 
 ADDITIONS IN 1.18.0
 Fix intermittent post-expiry glows caused by unrelated buff events and by
