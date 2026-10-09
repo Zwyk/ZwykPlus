@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.20.1**. Interface version: **16001**.
+Current version: **1.21.0**. Interface version: **16001**.
 
 ## Features
 
@@ -16,6 +16,7 @@ Current version: **1.20.1**. Interface version: **16001**.
 - Show average XP/hour, the rate without earned rested bonus, and estimated time to level on the native XP bar, with a click-to-reset confirmation.
 - Optionally left-click unfinished objectives in the native quest tracker to target matching NPCs outside combat, with Questie-assisted item dropper matching and an optional raid marker.
 - Optionally highlight native spell buttons shortly before supported class buffs on the player expire, with a configurable warning threshold.
+- Optionally remind you to maintain any Paladin's Judgement of the Crusader on your target, with missing and near-expiry glows.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show a five-second mana spark on the native player mana bar, with estimated regeneration tick sweeps.
@@ -27,7 +28,19 @@ Current version: **1.20.1**. Interface version: **16001**.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.21.0
+
+- Add **Auras → Keep Crusader judgement up**, disabled by default. On a living, visible hostile target, direct Seal of the Crusader and Judgement buttons glow while Judgement of the Crusader is missing or nearing expiration. All six debuff ranks count, regardless of the Paladin who applied them. The native slot selects the copy with the latest expiration. Judgement uses your current seal; the glow reminds you to prepare Crusader and judge, without choosing or casting a spell for you. Macros and other action bar addons are not supported.
+- Give the target reminder its own remaining-duration percentage, default **20%**, and reuse the existing before-expiration glow for the warning and after-expiration glow for absence, with the shared color/transparency. Absence has no time limit; the player buff continuation percentage does not limit it. Appearance controls remain available when only the target reminder is enabled. The target reminder takes precedence over player-buff reminders on Crusader buttons while an eligible target is selected, preventing overlapping glows.
+- Use native harmful-aura filtering and duration rendering for expiry warnings in combat. Missing detection requires explicit public-access proof for every Crusader rank before querying it. If the client hides the information, the missing state is unknown and its glow is suppressed; a concealed aura is never treated as absent. Target, aura and combat events invalidate previous public absence immediately. Configuration changes made in combat retain an existing native renderer until they can be applied. **/zp debuffs** opens a copyable, refreshable report with eligibility, public scan state and native errors.
+- Fix quest-click marking's **ADDON_ACTION_FORBIDDEN** from the direct `SetRaidTarget` call. The hardware target macro delegates marking to Blizzard's native raid-target click action, with the newly selected NPC checked for name/database identity and group permissions. Native `set-unmarked` preserves existing markers. No target-change event or delayed callback applies a marker.
+- Include **DebuffReminder.lua** when updating, then `/reload`. English/French settings and saved buff choices are preserved.
+
+Focused mocked checks cover public policy failures, any-caster/all-rank presence, target changes, native sort/filter setup, combat deferral, action mapping, reminder precedence, EN/FR configuration and the quest marker's native click handoff. Actual client combat visuals and protected click execution still need an in-game check.
+
+The implementation uses the native [custom aura container](https://github.com/Gethe/wow-ui-source/blob/9465cb273b5513495d8ecc12fbb19930dd6b8957/Interface/AddOns/Blizzard_AuraContainer/Blizzard_CustomAuraContainer.lua), [per-spell secrecy policy](https://github.com/Gethe/wow-ui-source/blob/9465cb273b5513495d8ecc12fbb19930dd6b8957/Interface/AddOns/Blizzard_APIDocumentationGenerated/SecretPredicateAPIDocumentation.lua) and [direct aura lookup](https://github.com/Gethe/wow-ui-source/blob/9465cb273b5513495d8ecc12fbb19930dd6b8957/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua). Crusader rank IDs were checked against the [Forever spell data](https://github.com/ElliotWood/Forever/blob/0dbbe2d4e7cd3f7c0c06d55d748420b2c41944fe/sim/paladin/spell_data_auto_gen.go). Marking delegates to the native [raidtarget action](https://github.com/Gethe/wow-ui-source/blob/9465cb273b5513495d8ecc12fbb19930dd6b8957/Interface/AddOns/Blizzard_FrameXML/SecureTemplates.lua) through the [secure click command](https://github.com/Gethe/wow-ui-source/blob/9465cb273b5513495d8ecc12fbb19930dd6b8957/Interface/AddOns/Blizzard_ChatFrameBase/Shared/SlashCommands.lua).
 
 ## Changes in 1.20.1
 

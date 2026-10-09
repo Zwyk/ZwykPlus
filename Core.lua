@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.20.1"
+ZP.version = "1.21.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -41,6 +41,8 @@ local defaults = {
     buffReminderAfterGlow = "button",
     buffReminderColor = {r = 1, g = 0.78, b = 0.12},
     buffReminderGlowTransparency = 0,
+    debuffReminder = false,
+    debuffReminderPercent = 20,
 }
 local numericSettings = {
     portraitModelSize = {minimum = 50, maximum = 100, step = 0.5},
@@ -48,6 +50,7 @@ local numericSettings = {
     buffReminderPercent = {minimum = 5, maximum = 100, step = 5},
     buffReminderAfterPercent = {minimum = 0, maximum = 100, step = 5},
     buffReminderGlowTransparency = {minimum = 0, maximum = 100, step = 1},
+    debuffReminderPercent = {minimum = 5, maximum = 100, step = 5},
     questTargetMarkerIcon = {minimum = 1, maximum = 8, step = 1},
 }
 local function Readable(value)
@@ -113,7 +116,7 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 21
+    ZwykPlusDB.version = 22
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -275,8 +278,12 @@ function ZP:SetOption(key, value)
     elseif key == "buffReminderBeforeGlow" or key == "buffReminderAfterGlow" or key == "buffReminderColor"
         or key == "buffReminderGlowTransparency" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder(true) end
+        if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
     elseif key == "buffReminder" or key == "buffReminderPercent" or key == "buffReminderAfterPercent" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder() end
+    elseif key == "debuffReminder" or key == "debuffReminderPercent" then
+        if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
+        if self.RefreshBuffReminder then self:RefreshBuffReminder(true) end
     elseif key == "questObjectiveTarget" or key == "questTargetQuestie" or key == "questTargetMarker"
         or key == "questTargetMarkerIcon" then
         if self.RefreshQuestTarget then self:RefreshQuestTarget() end
@@ -325,6 +332,7 @@ function ZP:ApplyAll()
     if self.RefreshFlightTimer then self:RefreshFlightTimer() end
     if self.RefreshQuestTarget then self:RefreshQuestTarget() end
     if self.RefreshBuffReminder then self:RefreshBuffReminder() end
+    if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
 end
 
 function ZP:ApplyFromOptions()
@@ -375,6 +383,7 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializeFlightTimer then ZP:InitializeFlightTimer() end
         if ZP.InitializeQuestTarget then ZP:InitializeQuestTarget() end
         if ZP.InitializeBuffReminder then ZP:InitializeBuffReminder() end
+        if ZP.InitializeDebuffReminder then ZP:InitializeDebuffReminder() end
         if ZP.RegisterSettings then ZP:RegisterSettings() end
         CheckOldAddons()
         self:UnregisterEvent("PLAYER_LOGIN")
@@ -419,6 +428,28 @@ function ZP:ShowBuffReminderDiagnostics()
     print(string.format(L.buffReminderDiagnosticCounts, #counts > 0 and table.concat(counts, "; ") or "--"))
 end
 
+function ZP:ShowDebuffReminderDiagnostics()
+    local function Lines()
+        local report = self.GetDebuffReminderDiagnostics and self:GetDebuffReminderDiagnostics()
+        if not report then return {L.buffReminderUnavailable} end
+        return {
+            string.format(L.debuffReminderDiagnosticSettings, report.enabled and L.yes or L.no,
+                report.percent or 20, report.eligible and L.yes or L.no),
+            string.format(L.debuffReminderDiagnosticState, report.publicAuraState or "unknown",
+                report.status or "--", report.missingGlows or 0),
+            string.format(L.debuffReminderDiagnosticEngine, report.mappedButtons or 0,
+                report.nativeGlows or 0, report.enginePending or 0, report.engineFailed or 0),
+            string.format(L.debuffReminderDiagnosticError, report.nativeGlowLastError or "--"),
+        }
+    end
+    if self.ShowDiagnostics then
+        self:ShowDiagnostics(L.debuffReminderDiagnostics, L.debuffReminderDiagnosticsHelp, Lines)
+    else
+        print("|cffffcc66ZwykPlus " .. self.version .. " - " .. L.debuffReminderDiagnostics .. "|r")
+        for _, line in ipairs(Lines()) do print(line) end
+    end
+end
+
 function ZP:ShowSpellMetricsDiagnostics(id)
     local lines = self.GetSpellMetricsDiagnostics and self:GetSpellMetricsDiagnostics(id) or {L.spellMetricsUnsupported_unavailable}
     local resolvedID = lines[1] and tonumber(lines[1]:match("^spellID=(%d+)$")) or id
@@ -434,6 +465,7 @@ end
 
 function ZP:TestBuffReminder(after)
     local count = self.ShowBuffReminderPreview and self:ShowBuffReminderPreview(after == true) or 0
+    if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
     if count == 0 then print("|cffffcc66ZwykPlus:|r " .. L.buffReminderNoButtons) end
 end
 
@@ -450,6 +482,8 @@ SlashCmdList.ZWYKPLUS = function(message)
         if ZP.ShowFlightTimerPreview then ZP:ShowFlightTimerPreview() end
     elseif command == "buffs" or command == "debug buffs" then
         ZP:ShowBuffReminderDiagnostics()
+    elseif command == "debuffs" or command == "debug debuffs" then
+        ZP:ShowDebuffReminderDiagnostics()
     elseif command == "test buffs" then
         ZP:TestBuffReminder()
     elseif command == "test buffs after" then

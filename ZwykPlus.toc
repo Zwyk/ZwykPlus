@@ -3,7 +3,7 @@
 ## Notes: Simple quality-of-life options for WoW Forever.
 ## Notes-frFR: Options pratiques pour WoW Forever.
 ## Author: Zwyk
-## Version: 1.20.1
+## Version: 1.21.0
 ## OptionalDeps: LibCustomGlow-1.0, Masque, Questie
 ## SavedVariables: ZwykPlusDB, ZwykPlusFlightTimes
 ## SavedVariablesPerCharacter: ZwykPlusNameplateState, ZwykPlusHealerManaState, ZwykPlusFlightState, ZwykPlusXPState
@@ -22,6 +22,7 @@ AuraTarget.lua
 BuffGlow.lua
 BuffNativeGlow.lua
 BuffReminder.lua
+DebuffReminder.lua
 QuestObjectives.lua
 QuestTarget.lua
 ChatIcons.lua

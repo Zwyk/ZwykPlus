@@ -433,6 +433,10 @@ local function Render()
             local shown, value = pcall(button.IsVisible, button)
             visible = shown and Readable(value) and value == true
         end
+        -- The target reminder owns Crusader buttons on eligible hostile
+        -- targets. This decision uses public configuration/action identity,
+        -- never the target aura slot's private visibility.
+        if not preview and ZP.IsDebuffReminderButtonOwned and ZP:IsDebuffReminderButtonOwned(button) then visible = false end
         local after = Enabled() and AfterExpiry(entry.family, now)
         local nativeBefore = not preview and not after and entry.nativeReady and entry.nativeGlowReady
         local style, red, green, blue, opacity = Appearance(preview and previewAfter or not preview and after)
@@ -519,6 +523,10 @@ function ZP:RefreshBuffReminder(preservePreview)
     ScanAuras()
     Render()
     StartTicker()
+end
+
+function ZP:IsBuffReminderPreviewActive()
+    return previewUntil ~= nil and GetTime() < previewUntil
 end
 
 function ZP:ShowBuffReminderPreview(after)

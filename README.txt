@@ -1,4 +1,4 @@
-ZwykPlus 1.20.1 - WoW Forever
+ZwykPlus 1.21.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,28 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITIONS AND FIXES IN 1.21.0
+Auras -> Keep Crusader judgement up (off by default): highlight direct
+Crusader seal and Judgement buttons while the hostile target's debuff is
+missing or nearly expired. Any Paladin's judgement, at any rank, counts.
+Judgement uses your current seal: prepare Crusader before judging.
+Native spell buttons only; macros are not supported.
+
+Configure its own warning percentage (default 20%). Uses shared buff glow
+styles/color/transparency: before-expiration for the warning and after-
+expiration for absence. Missing reminders have no time limit. They take
+precedence over player-seal reminders when an eligible target is selected.
+Expiry warnings use the native aura engine in combat. Missing detection
+requires explicit public aura access; private/unknown data suppresses it.
+Use /zp debuffs for a copyable diagnostic report.
+
+Fix the quest marker's direct protected SetRaidTarget call. A hardware
+target click now delegates marking to Blizzard's native raidtarget action,
+after checking the selected NPC. Existing markers are preserved.
+Include DebuffReminder.lua when updating, then /reload. Saved options stay.
+Mocked policy, lifecycle, options and click checks pass; actual combat
+visuals and protected marking still need checking in the client.
 
 FIXES IN 1.20.1
 XP/hour no longer disappears permanently after one incomplete XP sample.

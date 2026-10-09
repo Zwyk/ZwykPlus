@@ -9,6 +9,7 @@ local diagnosticsWindow, diagnosticsText, diagnosticsMeasure
 local diagnosticsHeading, diagnosticsHelp, diagnosticsProvider, diagnosticsTitle
 local portraitWindow
 local buffReminderWindow
+local debuffReminderWindow
 local questTargetWindow, questMarkerSelector
 local healerManaWindow
 local healerManaChoices = {}
@@ -22,6 +23,11 @@ local pageNames = {
     travel = L.categoryTravel, chat = L.categoryChat,
     casting = L.categoryCasting,
 }
+
+local function SettingEnabled(dependency)
+    if dependency == "spellReminders" then return ZP.db.buffReminder or ZP.db.debuffReminder end
+    return not dependency or ZP.db[dependency]
+end
 
 local function Label(parent, text, x, y, width, font)
     local label = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
@@ -334,7 +340,7 @@ function ZP:ShowBuffReminderOptions()
         buffColorButton:SetScript("OnClick", function() ZP:ShowBuffReminderColorPicker() end)
         SettingSlider(panel, "buffReminderGlowTransparency", L.buffReminderGlowTransparency, -393, 0, 100, 1,
             L.buffReminderGlowTransparencyHelp, L.portraitBackgroundOpaque, L.portraitBackgroundTransparent,
-            L.buffReminderPercentFormat, "buffReminder")
+            L.buffReminderPercentFormat, "spellReminders")
         Label(panel, L.buffReminderSupported, 24, -454, 412)
         Label(panel, L.buffReminderAfterLimit, 24, -526, 412)
         local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
@@ -375,6 +381,58 @@ function ZP:ShowBuffReminderOptions()
         buffReminderWindow = panel
     end
     buffReminderWindow:Show()
+end
+
+function ZP:ShowDebuffReminderOptions()
+    if not self.db then self:InitializeDB() end
+    if not debuffReminderWindow then
+        local panel = CreateFrame("Frame", "ZwykPlusDebuffReminderOptions", UIParent, "BackdropTemplate")
+        panel:Hide()
+        panel:SetSize(460, 440)
+        panel:SetPoint("CENTER")
+        panel:SetFrameStrata("FULLSCREEN_DIALOG")
+        panel:SetClampedToScreen(true)
+        panel:EnableMouse(true)
+        panel:SetMovable(true)
+        panel:RegisterForDrag("LeftButton")
+        panel:SetScript("OnDragStart", panel.StartMoving)
+        panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+        panel:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16, insets = {left = 4, right = 4, top = 4, bottom = 4}})
+        panel:SetBackdropColor(0.045, 0.04, 0.025, 1)
+        panel:SetBackdropBorderColor(0.75, 0.58, 0.25, 1)
+        Label(panel, L.debuffReminderOptionsTitle, 24, -20, 380, "GameFontNormalLarge")
+        Label(panel, L.debuffReminderHelp, 24, -50, 412)
+        SettingSlider(panel, "debuffReminderPercent", L.buffReminderPercent, -180, 5, 100, 5,
+            L.debuffReminderPercentHelp, "5%", "100%", L.buffReminderPercentFormat, "debuffReminder")
+        Label(panel, L.debuffReminderAppearanceHelp, 24, -238, 412)
+        local appearance = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        appearance:SetPoint("TOPLEFT", 24, -287)
+        appearance:SetSize(224, 24)
+        appearance:SetText(L.debuffReminderAppearance)
+        appearance:SetScript("OnClick", function()
+            ZP:ShowBuffReminderOptions()
+            buffReminderWindow:SetFrameLevel(panel:GetFrameLevel() + 10)
+        end)
+        Label(panel, L.debuffReminderLimit, 24, -327, 412)
+        local diagnostics = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        diagnostics:SetPoint("BOTTOMLEFT", 24, 15)
+        diagnostics:SetSize(170, 24)
+        diagnostics:SetText(L.debuffReminderDiagnostics)
+        diagnostics:SetScript("OnClick", function() ZP:ShowDebuffReminderDiagnostics() end)
+        local close = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        close:SetPoint("BOTTOMRIGHT", -24, 15)
+        close:SetSize(90, 24)
+        close:SetText(L.close)
+        close:SetScript("OnClick", function() panel:Hide() end)
+        local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+        closeIcon:SetPoint("TOPRIGHT", -6, -6)
+        closeIcon:SetScript("OnClick", function() panel:Hide() end)
+        panel:SetScript("OnShow", function() ZP:RefreshOptions() end)
+        UISpecialFrames[#UISpecialFrames + 1] = "ZwykPlusDebuffReminderOptions"
+        debuffReminderWindow = panel
+    end
+    debuffReminderWindow:Show()
 end
 
 function ZP:RefreshHealerManaMembers()
@@ -519,14 +577,19 @@ local function BuildPages()
     Checkbox(page, "spellTooltipMetrics", L.spellTooltipMetrics, 0, -54, 355, nil, L.spellTooltipMetricsHelp)
     Label(page, L.clickGroup, 0, -87, 370, "GameFontNormal")
     Checkbox(page, "auraSourceTarget", L.compactAuraClick, 0, -110, 355, "auraSource", L.auraSourceTargetHelp)
-    Label(page, L.auraClickNote, 28, -144, 365)
-    Label(page, L.buffReminderGroup, 0, -179, 370, "GameFontNormal")
-    Checkbox(page, "buffReminder", L.buffReminder, 0, -202, 240, nil, L.buffReminderHelp)
+    Label(page, L.auraReminderGroup, 0, -148, 370, "GameFontNormal")
+    Checkbox(page, "buffReminder", L.buffReminder, 0, -171, 240, nil, L.buffReminderHelp)
     local configureBuffs = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    configureBuffs:SetPoint("TOPLEFT", 279, -202)
+    configureBuffs:SetPoint("TOPLEFT", 279, -171)
     configureBuffs:SetSize(114, 24)
     configureBuffs:SetText(L.configure)
     configureBuffs:SetScript("OnClick", function() ZP:ShowBuffReminderOptions() end)
+    Checkbox(page, "debuffReminder", L.debuffReminder, 0, -202, 240, nil, L.debuffReminderHelp)
+    local configureDebuffs = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+    configureDebuffs:SetPoint("TOPLEFT", 279, -202)
+    configureDebuffs:SetSize(114, 24)
+    configureDebuffs:SetText(L.configure)
+    configureDebuffs:SetScript("OnClick", function() ZP:ShowDebuffReminderOptions() end)
 
     page = pages.frames
     Label(page, L.portraitsGroup, 0, 0, 370, "GameFontNormal")
@@ -595,7 +658,7 @@ function ZP:RefreshOptions()
     if not self.db then return end
     for _, button in ipairs(controls) do
         button:SetChecked(self.db[button.key])
-        local enabled = not button.dependency or self.db[button.dependency]
+        local enabled = SettingEnabled(button.dependency)
         button:SetEnabled(enabled)
         button:SetAlpha(enabled and 1 or 0.45)
         button.label:SetAlpha(enabled and 1 or 0.45)
@@ -604,7 +667,7 @@ function ZP:RefreshOptions()
         slider.refreshing = true
         slider:SetValue(self.db[slider.key])
         slider.valueLabel:SetText(string.format(slider.format, self.db[slider.key]))
-        local enabled = not slider.dependency or self.db[slider.dependency]
+        local enabled = SettingEnabled(slider.dependency)
         slider:SetEnabled(enabled)
         slider:SetAlpha(enabled and 1 or 0.45)
         slider.valueLabel:SetAlpha(enabled and 1 or 0.45)
@@ -614,7 +677,7 @@ function ZP:RefreshOptions()
         local style = self:GetBuffReminderAppearance(selector.key == "buffReminderAfterGlow")
         UIDropDownMenu_SetSelectedValue(selector, style)
         UIDropDownMenu_SetText(selector, L["buffReminderGlow_" .. style])
-        if self.db.buffReminder then UIDropDownMenu_EnableDropDown(selector)
+        if SettingEnabled("spellReminders") then UIDropDownMenu_EnableDropDown(selector)
         else UIDropDownMenu_DisableDropDown(selector) end
     end
     if questMarkerSelector then
@@ -626,8 +689,8 @@ function ZP:RefreshOptions()
     if buffColorButton then
         local _, r, g, b, opacity = self:GetBuffReminderAppearance(false)
         buffColorButton.swatch:SetColorTexture(r, g, b, opacity)
-        buffColorButton:SetEnabled(self.db.buffReminder)
-        buffColorButton:SetAlpha(self.db.buffReminder and 1 or 0.45)
+        buffColorButton:SetEnabled(SettingEnabled("spellReminders"))
+        buffColorButton:SetAlpha(SettingEnabled("spellReminders") and 1 or 0.45)
     end
     if reloadNote then
         local combat = InCombatLockdown and InCombatLockdown()
@@ -748,6 +811,11 @@ function ZP:ShowDiagnostics(title, help, provider, reportName)
     end
     diagnosticsHeading:SetText(title)
     diagnosticsHelp:SetText(help)
+    local level = 1
+    for _, panel in pairs({portraitWindow, buffReminderWindow, debuffReminderWindow, questTargetWindow, healerManaWindow}) do
+        level = math.max(level, panel:GetFrameLevel() + 10)
+    end
+    diagnosticsWindow:SetFrameLevel(level)
     RefreshPortraitReport()
     diagnosticsWindow:Show()
     diagnosticsText:SetFocus()

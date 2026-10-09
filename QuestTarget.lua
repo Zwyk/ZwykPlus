@@ -1,6 +1,8 @@
 local _, ZP = ...
 local events, queued
 local QueueRefresh
+local markerButton, markerRecord
+local markerButtonName = "ZwykPlusQuestTargetMarkerButton"
 local generation, recovering, combatActive = 0, false, false
 local records = setmetatable({}, {__mode = "k"})
 local hooked = setmetatable({}, {__mode = "k"})
@@ -152,6 +154,7 @@ local function HideTooltip(button)
 end
 
 local function Hide(record)
+    if markerRecord == record then markerRecord = nil end
     record.clicked = nil
     record.button:SetAttribute("type", nil)
     record.button:SetAttribute("macrotext", nil)
@@ -169,11 +172,11 @@ local function Valid(record)
     return signature ~= nil and signature == record.signature
 end
 
-local function MarkTarget(candidate)
+local function MarkerForTarget(candidate)
     local enabled, icon = ZP.db and ZP.db.questTargetMarker, ZP.db and ZP.db.questTargetMarkerIcon
     if not Readable(enabled) or enabled ~= true or not Number(icon) or icon > 8 or InCombat() then return end
     if not (UnitName and UnitGUID and UnitIsPlayer and UnitIsDeadOrGhost and CanBeRaidTarget
-        and GetRaidTargetIndex and IsInRaid and SetRaidTarget) then return end
+        and GetRaidTargetIndex and IsInRaid) then return end
     local ok, player = pcall(UnitIsPlayer, "target")
     if not ok or not Readable(player) or player ~= false then return end
     local dead
@@ -206,8 +209,48 @@ local function MarkTarget(candidate)
     if not ok or not Readable(existing) or (existing ~= nil and existing ~= 0) then return end
     local unchanged, current = pcall(UnitGUID, "target")
     if not unchanged or not String(current) or current ~= guid or InCombat() then return end
-    local marked = pcall(SetRaidTarget, "target", icon)
-    if not marked and ZP.WarnOnce then ZP:WarnOnce("questTargetMarker", ZP.L.questTargetMarkerFailed) end
+    return icon
+end
+
+local function EnsureMarkerButton()
+    if markerButton then return true end
+    -- Blizzard's /click command executes this native action after /targetexact.
+    -- Calling SetRaidTarget from an addon PostClick is protected even outside combat.
+    local ok, button = pcall(CreateFrame, "Button", markerButtonName, UIParent, "InsecureActionButtonTemplate")
+    if not ok or not button then return false end
+    markerButton = button
+    button:RegisterForClicks("LeftButtonUp")
+    button:SetAttribute("useOnKeyDown", false)
+    button:SetAttribute("unit", "target")
+    button:SetAttribute("action", "set-unmarked")
+    button:SetScript("PreClick", function()
+        button:SetAttribute("type", nil)
+        button:SetAttribute("marker", nil)
+        local record = markerRecord
+        markerRecord = nil
+        if not record or not record.clicked or not Valid(record) then return end
+        local icon = MarkerForTarget(record.clicked)
+        if icon then
+            button:SetAttribute("marker", icon)
+            button:SetAttribute("type", "raidtarget")
+        end
+    end)
+    button:SetScript("PostClick", function()
+        -- A standalone /click must never reuse a previous quest click's target.
+        button:SetAttribute("type", nil)
+        button:SetAttribute("marker", nil)
+    end)
+    button:Hide()
+    return true
+end
+
+local function TargetMacro(name)
+    local macro = "/targetexact " .. name
+    local enabled, icon = ZP.db and ZP.db.questTargetMarker, ZP.db and ZP.db.questTargetMarkerIcon
+    if markerButton and Readable(enabled) and enabled == true and Number(icon) and icon <= 8 then
+        macro = macro .. "\n/click " .. markerButtonName
+    end
+    return macro
 end
 
 local function Tooltip(record)
@@ -225,6 +268,7 @@ local function Tooltip(record)
 end
 
 local function Attach(block, line, key, candidates, signature)
+    EnsureMarkerButton()
     local record = records[line]
     if not record then
         -- Unlike SecureActionButtonTemplate, this does not protect the pooled native rows.
@@ -243,16 +287,17 @@ local function Attach(block, line, key, candidates, signature)
             -- A pooled line may have changed before the queued layout refresh.
             if not Valid(record) then Hide(record); return end
             record.clicked = record.candidates[record.cursor]
-            record.button:SetAttribute("macrotext", "/targetexact " .. record.clicked.name)
+            markerRecord = record
+            record.button:SetAttribute("macrotext", TargetMacro(record.clicked.name))
         end)
         button:SetScript("PostClick", function()
             local candidate = record.clicked
+            if markerRecord == record then markerRecord = nil end
             record.clicked = nil
             if not candidate or not Valid(record) then return end
-            MarkTarget(candidate)
             record.cursor = record.cursor % #record.candidates + 1
             record.name = record.candidates[record.cursor].name
-            record.button:SetAttribute("macrotext", "/targetexact " .. record.name)
+            record.button:SetAttribute("macrotext", TargetMacro(record.name))
             if GameTooltip and GameTooltip.GetOwner and GameTooltip:GetOwner() == button then Tooltip(record) end
         end)
         button:SetScript("OnEnter", function() Tooltip(record) end)
@@ -268,7 +313,7 @@ local function Attach(block, line, key, candidates, signature)
     record.candidates, record.signature = candidates, signature
     record.block, record.questID, record.key = block, block.id, key
     record.name = candidates[record.cursor or 1].name
-    record.button:SetAttribute("macrotext", "/targetexact " .. record.name)
+    record.button:SetAttribute("macrotext", TargetMacro(record.name))
     record.button:SetAttribute("type", "macro")
     record.button:Show()
     record.seen = true
