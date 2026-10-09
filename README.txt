@@ -1,4 +1,4 @@
-ZwykPlus 1.19.0 - WoW Forever
+ZwykPlus 1.20.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,27 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITIONS IN 1.20.0
+New Casting settings, both features off by default:
+- Mana spark: a five-second sweep on the original player mana bar after a
+  mana-cost cast. Optional two-second regen sweeps are estimates, not a
+  measurement of server tick phase. Dynamic free casts with a private cost
+  can still start the estimate. Current/max mana is never read.
+- Cast-target names: game-provided recipients below original player/target/
+  focus cast bars; readable classes use class colors. Other units' channels
+  are excluded because the API may return the previous cast's recipient.
+  Player channels can use a matching recorded cast recipient. Native
+  nameplate labels remain unchanged. Initial setup waits out combat.
+
+Buff glows now use a fixed-size mask instead of a child clipping rectangle
+derived from secret timer geometry, following the compatible approach found
+in Ellesmere. All four styles retain their threshold/color/opacity settings.
+After-expiry continuation still requires public duration and expiry data;
+Ellesmere's Forever reminders do not bypass that restriction.
+
+Include ManaSpark.lua and CastTargets.lua, then /reload. Saved settings stay.
+Focused mocked regressions pass; actual combat visuals need a client check.
 
 ADDITIONS IN 1.19.0
 Fix after-expiration removals occurring 0.03-0.05s before their public timer.

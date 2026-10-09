@@ -72,13 +72,16 @@ local function Build(frame)
     state.bar = bar
     state.fill = bar:GetStatusBarTexture()
 
-    local clip = CreateFrame("Frame", nil, frame, "DisableUntrustedLayoutScriptsTemplate")
-    clip:SetClipsChildren(true)
-    clip:EnableMouse(false)
-    clip:SetPoint("TOPLEFT", state.fill, "TOPRIGHT", 0, 0)
-    -- The other corner is positioned when the public percentage changes.
-    state.clip = clip
-    local holder = CreateFrame("Frame", nil, clip)
+    -- Secret-derived frame clipping can suppress rendering in restricted
+    -- contexts. A fixed, nonzero-width mask follows the native fill instead;
+    -- only its position changes, and no secret geometry is read by Lua.
+    local mask = frame:CreateMaskTexture()
+    mask:SetTexture("Interface\\Buttons\\WHITE8X8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE", "NEAREST")
+    mask:SetWidth(gateWidth)
+    mask:SetPoint("TOPLEFT", state.fill, "TOPRIGHT", 0, 0)
+    mask:SetPoint("BOTTOMLEFT", state.fill, "BOTTOMRIGHT", 0, 0)
+    state.mask = mask
+    local holder = CreateFrame("Frame", nil, frame)
     holder:SetAllPoints(frame)
     holder:EnableMouse(false)
 
@@ -126,6 +129,11 @@ local function Build(frame)
     animation:SetFlipBookColumns(5)
     animation:SetFlipBookFrames(30)
     proc.groups[1] = loop
+
+    -- Every style, including ones selected later, shares the same native gate.
+    for _, layer in pairs(state.layers) do
+        for _, texture in ipairs(layer.textures) do texture:AddMaskTexture(mask) end
+    end
 
     -- This call delegates the secret fraction and ticking to the client.
     frame:SetDurationBar(bar, {direction = Enum.StatusBarTimerDirection.RemainingTime})
@@ -178,15 +186,12 @@ function ZP:ConfigureBuffNativeGlow(frame, button, threshold, style, red, green,
             for _, group in ipairs(layer.groups) do group:Play() end
         end
 
-        -- At fraction p the clipping left edge is RIGHT + margin + (p-t)*K;
-        -- its right edge is RIGHT + margin. Above t it exposes no glow. Below
-        -- t it reveals the icon rim, without branching on p in addon code.
+        -- At fraction p the fixed mask begins at RIGHT + margin + (p-t)*K.
+        -- Above t it lies past the glow; below t it sweeps over the icon rim.
+        -- Its width remains K even at zero, avoiding zero-area mask leakage.
         state.bar:ClearAllPoints()
         state.bar:SetPoint("TOPLEFT", frame, "TOPRIGHT", margin - threshold * gateWidth, margin)
         state.bar:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", margin - threshold * gateWidth, -margin)
-        state.clip:ClearAllPoints()
-        state.clip:SetPoint("TOPLEFT", state.fill, "TOPRIGHT", 0, 0)
-        state.clip:SetPoint("BOTTOMRIGHT", state.bar, "BOTTOMLEFT", threshold * gateWidth, 0)
     end)
     if not ok then
         local state = renderers[frame]

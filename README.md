@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.19.0**. Interface version: **16001**.
+Current version: **1.20.0**. Interface version: **16001**.
 
 ## Features
 
@@ -18,6 +18,8 @@ Current version: **1.19.0**. Interface version: **16001**.
 - Optionally highlight native spell buttons shortly before supported class buffs on the player expire, with a configurable warning threshold.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
+- Optionally show a five-second mana spark on the native player mana bar, with estimated regeneration tick sweeps.
+- Optionally show actual spell-target names below native player, target and focus cast bars.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
 - Optionally show an eye above existing visible, accessible nameplates for units currently targeting you.
 - Optionally show a movable healer mana summary while in a party or raid, with individual percentages and a group average.
@@ -25,7 +27,16 @@ Current version: **1.19.0**. Interface version: **16001**.
 - Show icons beside linked items in chat.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
-The setup has six categories: **Interface, Automation, Auras, Frames, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.20.0
+
+- Add **Casting → Mana spark**, disabled by default. The original player mana bar receives a spark that sweeps for five seconds after a successful mana-cost cast and restarts on another such cast. **Also show estimated regen ticks** adds two-second sweeps after that window while mana updates continue. Uses declared spell-cost metadata and public event signals, never the current/max mana amount. Dynamic free casts with a private cost can still trigger the estimate; the tick option does not measure the server's exact regeneration phase. Non-mana classes do not receive an overlay. Native timer bars and one reused animation group drive the sweeps without a Lua update loop.
+- Add **Casting → Show cast-target names**, disabled by default. Show the game-provided recipient below original player, target and focus cast bars, leaving their spell labels and native behavior intact. Use class colors only when the target's class is public. Suppress other units' channels because the game API can retain a previous hard-cast recipient; player channels use the matching recorded cast recipient when available. Existing native nameplate cast-target labels are retained without duplication. Initial overlay/label setup waits until outside combat when necessary.
+- Improve the native **buff glow** using a fixed-width, nonzero-size texture mask anchored to the native timer fill. The previous child-clipping rectangle could fail to render when its geometry became secret. All four styles share the mask, preserve their settings and keep their animation targets below the native aura owner. No secret geometry or timer is read back. This change improves the before-expiry renderer; it does not claim reliable post-expiry timing when duration/expiration data is private.
+- Integrate the additions in English/French, with a seventh setup category that fits the existing window. Existing settings are preserved. Include **ManaSpark.lua** and **CastTargets.lua** when updating, then `/reload`.
+
+Reference inspected: the previously downloaded **EllesmereUI-v9.4.zip**, especially `EllesmereUI/EllesmereUI_ManaRegenSpark.lua`, `EllesmereUIUnitFrames/EUI_UnitFrames_Castbar.lua` and `EllesmereUICooldownManager/EllesmereUICdmHooks.lua`. Implementations are independent and use existing Blizzard textures. Ellesmere's Forever aura reminders explicitly disable duration thresholds; its combat snapshot/absence logic does not establish natural expiry or a private after-expiry percentage window. Focused mocked checks cover timing, lifecycle, private values, native cast recipients and EN/FR options; actual combat rendering still needs an in-game check.
 
 ## Changes in 1.19.0
 

@@ -15,11 +15,12 @@ local healerManaChoices = {}
 local settingSliders = {}
 local glowSelectors = {}
 local buffColorButton, buffColorSession
-local pageOrder = {"interface", "automation", "auras", "frames", "travel", "chat"}
+local pageOrder = {"interface", "automation", "auras", "frames", "casting", "travel", "chat"}
 local pageNames = {
     interface = L.categoryInterface, automation = L.categoryAutomation,
     auras = L.categoryAuras, frames = L.categoryFrames,
     travel = L.categoryTravel, chat = L.categoryChat,
+    casting = L.categoryCasting,
 }
 
 local function Label(parent, text, x, y, width, font)
@@ -557,6 +558,14 @@ local function BuildPages()
     resetMana:SetSize(114, 24)
     resetMana:SetText(L.healerManaReset)
     resetMana:SetScript("OnClick", function() ZP:ResetHealerManaPosition() end)
+
+    page = pages.casting
+    Label(page, L.manaSparkGroup, 0, 0, 370, "GameFontNormal")
+    Checkbox(page, "manaSpark", L.manaSpark, 0, -23, 355, nil, L.manaSparkHelp)
+    Checkbox(page, "manaSparkRegenTicks", L.manaSparkRegenTicks, 23, -54, 332, "manaSpark", L.manaSparkRegenTicksHelp)
+    Label(page, L.manaSparkNote, 28, -94, 365)
+    Label(page, L.castTargetsGroup, 0, -158, 370, "GameFontNormal")
+    Checkbox(page, "castTargetNames", L.castTargetNames, 0, -181, 355, nil, L.castTargetNamesHelp)
 
     page = pages.travel
     Label(page, L.flightTimerTitle, 0, 0, 370, "GameFontNormal")
