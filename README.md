@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.21.0**. Interface version: **16001**.
+Current version: **1.21.1**. Interface version: **16001**.
 
 ## Features
 
@@ -29,6 +29,15 @@ Current version: **1.21.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.21.1
+
+- Fix healer mana percentages displayed by `UnitPowerPercent` being omitted from the average. Prefer its readable percentage and retain readable current/maximum mana as a fallback. Average percentages equally per selected healer, including a valid **0%**, with mana explicitly selected even for a druid in another form.
+- With exactly one eligible online, living mana healer, forward their native percentage directly to the average label. This also works when the percentage is private: a one-member mean needs no arithmetic. In the reported **91% + Offline** case, the average now shows **91%**. Confirmed offline, dead and non-mana members are excluded before querying their percentages, so stale mana does not enter the average. Reconnection and roster changes refresh the eligible members.
+- For multiple active healers, require every contribution to be readable before displaying an exact average. Private values can be displayed individually but cannot be lawfully combined by addon Lua; no supported aggregate mana API was found. Show **Restricted** with an explanation in the summary tooltip, or **Unavailable** when connection/life/mana information is missing. Do not present a readable subset as the full group's average. **/zp debug healers** opens a copyable, refreshable report identifying each selected member's status and mana source.
+- English/French labels and saved selections/position are preserved. Update **HealerMana.lua**, **Locale.lua** and **Core.lua**, then `/reload`.
+
+Focused mocked checks reproduce the lost public-percentage average and cover native single-healer rendering, private-data guards, offline/dead/non-mana exclusion, unknown status, zero mana, reconnects, party/raid changes and manual selection. Actual client API availability still needs an in-game check. The implementation follows the pinned [unit power APIs](https://github.com/Gethe/wow-ui-source/blob/9465cb273b5513495d8ecc12fbb19930dd6b8957/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitDocumentation.lua) and [power secrecy predicates](https://github.com/Gethe/wow-ui-source/blob/9465cb273b5513495d8ecc12fbb19930dd6b8957/Interface/AddOns/Blizzard_APIDocumentationGenerated/SecretPredicatesDocumentation.lua). It never reads rendered text back or calculates with a private mana value.
 
 ## Changes in 1.21.0
 

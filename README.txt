@@ -1,4 +1,4 @@
-ZwykPlus 1.21.0 - WoW Forever
+ZwykPlus 1.21.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,25 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+FIXES IN 1.21.1
+Healer mana averages now include readable native UnitPowerPercent values,
+which previously appeared on individual rows but were omitted from the mean.
+With one eligible online, living mana healer, the native percentage can also
+be displayed directly as the average without any private arithmetic.
+The reported 91% + Offline case now gives an average of 91%.
+
+Offline, dead and confirmed non-mana members are excluded before mana
+queries. Zero mana is valid. Reconnects and roster changes refresh eligibility.
+With multiple active healers, all percentages must be readable to calculate
+the exact average. Private individual values still display, but the average
+shows Restricted with a tooltip explanation; other missing data shows
+Unavailable. A partial subset is never labelled as the full-group average.
+
+/zp debug healers opens a copyable report of member states and mana sources.
+Update HealerMana.lua, Locale.lua and Core.lua, then /reload. Selections and
+position stay saved. Focused mocked checks pass; client API availability
+still needs testing in game.
 
 ADDITIONS AND FIXES IN 1.21.0
 Auras -> Keep Crusader judgement up (off by default): highlight direct

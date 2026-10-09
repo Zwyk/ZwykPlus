@@ -2,6 +2,7 @@ local _, ZP = ...
 local L = ZP.L
 local events = CreateFrame("Frame")
 local panel, saved, members
+local lastReport = {state = "inactive", members = {}}
 local elapsed, rosterElapsed = 0, 0
 local initialized, moving = false, false
 local manaType = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
@@ -236,6 +237,11 @@ local function CreatePanel()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(L.healerManaTitle, 1, 0.82, 0)
         GameTooltip:AddLine(L.healerManaHelp, 0.85, 0.85, 0.85, true)
+        if lastReport.state == "restricted" then
+            GameTooltip:AddLine(L.healerManaRestrictedHelp, 1, 0.82, 0, true)
+        elseif lastReport.state == "unavailable" then
+            GameTooltip:AddLine(L.healerManaUnavailableHelp, 0.85, 0.85, 0.85, true)
+        end
         GameTooltip:Show()
     end)
     panel:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -266,31 +272,35 @@ end
 
 local function Mana(unit)
     local connected, dead = Call(UnitIsConnected, unit), Call(UnitIsDeadOrGhost, unit)
-    if connected == false then return nil, L.healerManaOffline end
-    if dead == true then return nil, L.healerManaDead end
-    if connected ~= true or dead ~= false then return nil, "?", true end
+    if connected == false then return nil, L.healerManaOffline, {state = "offline", excluded = true} end
+    if dead == true then return nil, L.healerManaDead, {state = "dead", excluded = true} end
+    if connected ~= true or dead ~= false then return nil, "?", {state = "unavailable"} end
+    local hasMana = Call(UnitHasPowerType, unit, manaType)
+    if hasMana == false then return nil, "?", {state = "no-mana", excluded = true} end
     -- Explicit mana type retains a druid's mana while in a rage/energy form.
-    local current, maximum = Call(UnitPower, unit, manaType), Call(UnitPowerMax, unit, manaType)
-    if Number(maximum) and maximum <= 0 then return nil, "?" end
-    if not Number(current) or not Number(maximum) then return nil, "?", true end
-    local percent = math.max(0, math.min(100, current / maximum * 100))
-    return percent, string.format("%d%%", math.floor(percent + 0.5))
-end
-
-local function DisplayNativePercent(row, unit)
+    local maximum = Call(UnitPowerMax, unit, manaType)
+    if Number(maximum) and maximum <= 0 then return nil, "?", {state = "no-mana", excluded = true} end
+    local native, percent
     local curve = CurveConstants and CurveConstants.ScaleTo100
-    if not curve or not UnitPowerPercent or not row.mana.SetFormattedText then return end
-    if Call(UnitHasPowerType, unit, manaType) == false then return end
-    local ok, percent = pcall(UnitPowerPercent, unit, manaType, false, curve)
-    if not ok then return end
-    if Number(percent) then
-        row.mana:SetText(string.format("%d%%", math.floor(math.max(0, math.min(100, percent)) + 0.5)))
-    elseif issecretvalue and issecretvalue(percent) then
-        -- The native text sink accepts secret numbers. Never calculate with them,
-        -- read the formatted text back, or include them in our group average.
-        local rendered = pcall(row.mana.SetFormattedText, row.mana, "%.0f%%", percent)
-        if not rendered then row.mana:SetText("?") end
+    if curve and type(UnitPowerPercent) == "function" then
+        local ok, value = pcall(UnitPowerPercent, unit, manaType, false, curve)
+        if ok and Number(value) then percent = math.max(0, math.min(100, value))
+        elseif ok and issecretvalue and issecretvalue(value) then
+            -- Store no derived information. This value may only reach a native
+            -- text sink; even its truthiness is never used to select a branch.
+            native = {state = "restricted", value = value,
+                active = hasMana == true or (Number(maximum) and maximum > 0), source = "native-percent"}
+        end
     end
+    if Number(percent) then
+        return percent, string.format("%d%%", math.floor(percent + 0.5)), {state = "public", source = "native-percent"}
+    end
+    local current = Call(UnitPower, unit, manaType)
+    if Number(current) and Number(maximum) then
+        percent = math.max(0, math.min(100, current / maximum * 100))
+        return percent, string.format("%d%%", math.floor(percent + 0.5)), {state = "public", source = "power-values"}
+    end
+    return nil, "?", native or {state = "unavailable"}
 end
 
 local function PercentColor(label, percent)
@@ -301,7 +311,9 @@ local function PercentColor(label, percent)
 end
 
 local function Render()
-    local index, total, count = 0, 0, 0
+    local index, total, count, blocked, restricted = 0, 0, 0, 0, 0
+    local singleNative
+    lastReport = {state = "unavailable", members = {}, public = 0, excluded = 0}
     for _, member in ipairs(members or {}) do
         if member.selected then
             index = index + 1
@@ -318,17 +330,43 @@ local function Render()
                 row.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
                 row.icon:SetTexCoord(0, 1, 0, 1)
             end
-            local percent, text, unavailable = Mana(member.unit)
+            local percent, text, info = Mana(member.unit)
             row.mana:SetText(text)
             PercentColor(row.mana, percent)
-            if unavailable then DisplayNativePercent(row, member.unit) end
-            if percent then total, count = total + percent, count + 1 end
+            if info.state == "restricted" and row.mana.SetFormattedText then
+                local rendered = pcall(row.mana.SetFormattedText, row.mana, "%.0f%%", info.value)
+                if not rendered then row.mana:SetText("?") end
+            end
+            if Number(percent) then total, count = total + percent, count + 1
+            elseif info.excluded then lastReport.excluded = lastReport.excluded + 1
+            else
+                blocked = blocked + 1
+                if info.state == "restricted" then
+                    restricted = restricted + 1
+                    if info.active then singleNative = info end
+                end
+            end
+            lastReport.members[#lastReport.members + 1] = {unit = member.unit, name = member.name,
+                state = info.state, source = info.source or "--"}
             row:Show()
         end
     end
     for i = index + 1, #panel.rows do panel.rows[i].unit = nil; panel.rows[i]:Hide() end
-    local average = count > 0 and total / count or nil
-    panel.average:SetText(L.healerManaAverage .. ": " .. (average and string.format("%d%%", math.floor(average + 0.5)) or "?"))
+    local average = count > 0 and blocked == 0 and total / count or nil
+    lastReport.public, lastReport.restricted, lastReport.unavailable = count, restricted, blocked - restricted
+    if Number(average) then
+        panel.average:SetText(L.healerManaAverage .. ": " .. string.format("%d%%", math.floor(average + 0.5)))
+        lastReport.state = "public"
+    elseif count == 0 and blocked == 1 and singleNative and panel.average.SetFormattedText then
+        -- With one eligible healer, the mean is their percentage itself. The
+        -- engine can display it directly without secret arithmetic/readback.
+        local ok = pcall(panel.average.SetFormattedText, panel.average, "%s: %.0f%%", L.healerManaAverage, singleNative.value)
+        if ok then lastReport.state = "native-single"
+        else panel.average:SetText(L.healerManaAverage .. ": " .. L.healerManaUnavailable) end
+    else
+        lastReport.state = restricted > 0 and "restricted" or "unavailable"
+        panel.average:SetText(L.healerManaAverage .. ": " .. (restricted > 0 and L.healerManaRestricted or L.healerManaUnavailable))
+    end
     PercentColor(panel.average, average)
     panel.empty:SetShown(index == 0)
     panel:SetHeight(index > 0 and (27 + index * 15) or 60)
@@ -340,6 +378,7 @@ function ZP:RefreshHealerMana()
         if panel then panel:Hide() end
         events:SetScript("OnUpdate", nil)
         members = nil
+        lastReport = {state = "inactive", members = {}}
         elapsed, rosterElapsed = 0, 0
     else
         CreatePanel()
@@ -359,6 +398,23 @@ function ZP:RefreshHealerMana()
         end)
     end
     if self.RefreshHealerManaMembers then self:RefreshHealerManaMembers() end
+end
+
+function ZP:GetHealerManaDiagnostics()
+    local lines = {string.format(L.healerManaDiagnosticAverage, lastReport.state or "inactive",
+        lastReport.public or 0, lastReport.restricted or 0, lastReport.unavailable or 0, lastReport.excluded or 0)}
+    for _, member in ipairs(lastReport.members) do
+        lines[#lines + 1] = string.format("%s (%s): %s; source=%s", member.name, member.unit, member.state, member.source)
+    end
+    return lines
+end
+
+function ZP:ShowHealerManaDiagnostics()
+    if self.ShowDiagnostics then
+        self:ShowDiagnostics(L.healerManaDiagnostics, L.healerManaDiagnosticsHelp, function()
+            return self:GetHealerManaDiagnostics()
+        end)
+    end
 end
 
 function ZP:InitializeHealerMana()

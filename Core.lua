@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.21.0"
+ZP.version = "1.21.1"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -478,6 +478,8 @@ SlashCmdList.ZWYKPLUS = function(message)
         if ZP.ShowPortraitDiagnostics then ZP:ShowPortraitDiagnostics() end
     elseif command == "healers" then
         if ZP.ShowHealerManaMembers then ZP:ShowHealerManaMembers() end
+    elseif command == "debug healers" then
+        if ZP.ShowHealerManaDiagnostics then ZP:ShowHealerManaDiagnostics() end
     elseif command == "flight" then
         if ZP.ShowFlightTimerPreview then ZP:ShowFlightTimerPreview() end
     elseif command == "buffs" or command == "debug buffs" then
