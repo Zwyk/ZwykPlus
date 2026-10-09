@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.20.0"
+ZP.version = "1.20.1"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,

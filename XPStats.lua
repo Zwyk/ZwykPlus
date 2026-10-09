@@ -3,7 +3,8 @@ local L = ZP.L
 local events = CreateFrame("Frame")
 local state, baseline, clock, initialized, queued, generation = nil, nil, nil, false, false, 0
 local restedName, wantedLevel, retries, updateElapsed = nil, nil, 0, 0
-local pending = {total = 0, quests = 0, kills = 0, bonus = 0, unknown = false}
+local samplePending = false
+local pending = {total = 0, quests = 0, kills = 0, bonus = 0, unknown = false, xpChanged = false}
 local formats
 
 local function Readable(value)
@@ -64,13 +65,19 @@ end
 local function AccrueTime()
     if not state then return end
     local now = Call(GetTime)
-    if not Number(now) then state.complete = false; return end
+    -- A later readable clock can recover the whole interval. Do not turn a
+    -- transient read failure into a permanent error in the saved statistics.
+    if not Number(now) or clock and now < clock then return false end
+    if not clock and (pending.xpChanged or pending.total > 0 or pending.quests > 0 or pending.unknown) then
+        state.complete = false
+    end
     if clock and now >= clock then state.elapsed = state.elapsed + now - clock end
     clock = now
+    return true
 end
 
 local function ClearPending()
-    pending = {total = 0, quests = 0, kills = 0, bonus = 0, unknown = false}
+    pending = {total = 0, quests = 0, kills = 0, bonus = 0, unknown = false, xpChanged = false}
     wantedLevel, retries = nil, 0
 end
 
@@ -158,40 +165,55 @@ local function CombatGain(text)
 end
 
 local QueueSample
-local function Sample()
+local function Sample(final)
     if not state then return end
     AccrueTime()
     local current = Snapshot()
-    if current and wantedLevel and current.level < wantedLevel and retries < 15 then
-        retries = retries + 1
-        QueueSample()
-        return
-    end
+    samplePending = true
     if not current then
-        state.complete, baseline = false, nil
-        ClearPending()
-        return
+        -- Retain both the last readable XP and award metadata. The next valid
+        -- snapshot can still reconcile this interval, including one level-up.
+        return false
+    end
+    local changingLevel = baseline and (current.level < baseline.level
+        or current.level == baseline.level and (current.xp < baseline.xp or current.maximum ~= baseline.maximum))
+    if (wantedLevel and current.level < wantedLevel) or changingLevel then
+        if not final and retries < 15 then retries = retries + 1; QueueSample() end
+        return false
     end
     local gain
     if baseline then
         if current.level == baseline.level and current.xp >= baseline.xp then gain = current.xp - baseline.xp
         elseif current.level == baseline.level + 1 then gain = baseline.maximum - baseline.xp + current.xp end
     else
-        state.complete = false
+        -- Login can precede the first readable XP snapshot. With no recorded
+        -- awards yet, this establishes the start rather than a lost interval.
+        if pending.xpChanged or pending.total > 0 or pending.quests > 0 or pending.unknown then
+            state.complete, state.splitKnown, state.eligibleKnown = false, false, false
+        end
     end
-    if not gain or (wantedLevel and current.level < wantedLevel) then
-        state.complete = false
-    elseif gain == 0 and (pending.total > 0 or pending.quests > 0) and retries < 15 then
+    if baseline and not gain then
+        -- More than one level cannot be reconciled from these two snapshots.
+        state.complete, state.splitKnown, state.eligibleKnown = false, false, false
+    elseif gain == 0 and (pending.total > 0 or pending.quests > 0) then
         -- The combat message can arrive just before its native XP update.
-        retries = retries + 1
-        QueueSample()
-        return
-    elseif gain > 0 then
-        state.gained = state.gained + gain
+        if not final and retries < 15 then retries = retries + 1; QueueSample() end
+        -- After the short burst, OnUpdate retries once a second. Keeping the
+        -- metadata also lets logout report an award that could not be saved.
+        return false
+    elseif gain and gain > 0 then
         local matched = pending.total <= gain and pending.bonus <= pending.kills and pending.bonus <= gain
         -- Quest rewards may also have an unnamed XP chat message. Only use the
         -- quest payload to explain the residual, never add it to chat XP twice.
         local classified = pending.total == gain or pending.total + pending.quests == gain
+        -- XP can update before the localized award message. Allow a short
+        -- settling window before declaring its rested split unavailable.
+        if not classified and not final and retries < 2 then
+            retries = retries + 1
+            QueueSample()
+            return false
+        end
+        state.gained = state.gained + gain
         local bonus = matched and pending.bonus or 0
         local poolDrop = baseline and baseline.pool and current.pool and math.max(0, baseline.pool - current.pool)
         local noRest = baseline and baseline.pool == 0 and current.pool == 0
@@ -209,7 +231,9 @@ local function Sample()
         end
     end
     baseline = current
+    samplePending = false
     ClearPending()
+    return true
 end
 
 QueueSample = function()
@@ -249,15 +273,16 @@ end
 
 function ZP:GetXPStatistics()
     if not state then return end
-    AccrueTime()
+    local timeKnown = AccrueTime()
     local info = {elapsed = state.elapsed, gained = state.gained, bonus = state.bonus, eligible = state.eligible,
-        complete = state.complete, splitKnown = state.splitKnown, eligibleKnown = state.eligibleKnown}
-    if state.complete and state.elapsed >= 1 then
+        complete = state.complete and timeKnown ~= false, splitKnown = state.splitKnown, eligibleKnown = state.eligibleKnown}
+    info.partialRate = not info.complete
+    local current = Snapshot()
+    if state.elapsed >= 1 then
         info.totalRate = state.gained * 3600 / state.elapsed
         if state.splitKnown then
             local base = (state.gained - state.bonus) / state.elapsed
             info.baseRate = base * 3600
-            local current = Snapshot()
             if current and current.pool and base > 0 then
                 local remaining, eligible = current.maximum - current.xp, state.eligible / state.elapsed
                 if current.pool == 0 or eligible == 0 and state.eligibleKnown then info.secondsToLevel = remaining / base
@@ -266,7 +291,14 @@ function ZP:GetXPStatistics()
                     if remaining <= rate * boostTime then info.secondsToLevel = remaining / rate
                     else info.secondsToLevel = boostTime + (remaining - rate * boostTime) / base end
                 end
+                if info.secondsToLevel then info.estimateMethod = "rested" end
             end
+        end
+        if current and not info.secondsToLevel and info.totalRate > 0 then
+            -- Useful historical-rate projection when the rested split or pool
+            -- is unavailable. It does not claim to model the remaining reserve.
+            info.secondsToLevel = (current.maximum - current.xp) * 3600 / info.totalRate
+            info.estimateMethod = "observed"
         end
     end
     return info
@@ -287,27 +319,46 @@ local function Duration(seconds)
     return string.format("%dm %02ds", minutes, seconds % 60)
 end
 
+local function StatisticLabels(info)
+    local total, base, estimate = FormatNumber(info.totalRate), FormatNumber(info.baseRate), Duration(info.secondsToLevel)
+    if info.partialRate then
+        if info.totalRate then total = string.format(L.xpStatsApproximate, total) end
+        if info.baseRate then base = string.format(L.xpStatsApproximate, base) end
+    end
+    if info.secondsToLevel and (info.partialRate or info.estimateMethod == "observed") then
+        estimate = string.format(L.xpStatsApproximate, estimate)
+    end
+    return total, base, estimate
+end
+
 function ZP:XPStatsBarLabel()
     if not Active() then return end
     local info = self:GetXPStatistics()
-    if info then return string.format(L.xpStatsBarFormat, FormatNumber(info.totalRate), FormatNumber(info.baseRate), Duration(info.secondsToLevel)) end
+    if info then
+        local total, base, estimate = StatisticLabels(info)
+        return string.format(L.xpStatsBarFormat, total, base, estimate)
+    end
 end
 
 function ZP:XPStatsTooltipLines()
     if not Active() then return {} end
     local info = self:GetXPStatistics()
     if not info then return {} end
+    local total, base, estimate = StatisticLabels(info)
     local lines = {
         string.format(L.xpStatsTooltipElapsed, Duration(info.elapsed)),
         string.format(L.xpStatsTooltipGained, FormatNumber(info.gained)),
         string.format(L.xpStatsTooltipBonus, FormatNumber(info.splitKnown and info.bonus or nil)),
-        string.format(L.xpStatsTooltipRate, FormatNumber(info.totalRate)),
-        string.format(L.xpStatsTooltipBaseRate, FormatNumber(info.baseRate)),
-        string.format(L.xpStatsTooltipEstimate, Duration(info.secondsToLevel)),
+        string.format(L.xpStatsTooltipRate, total),
+        string.format(L.xpStatsTooltipBaseRate, base),
+        string.format(L.xpStatsTooltipEstimate, estimate),
     }
-    if not info.complete then lines[#lines + 1] = L.xpStatsIncomplete
-    elseif not info.splitKnown then lines[#lines + 1] = L.xpStatsBonusUnavailable
-    elseif not info.eligibleKnown and not info.secondsToLevel then lines[#lines + 1] = L.xpStatsEstimateUnavailable end
+    if not info.complete then lines[#lines + 1] = L.xpStatsIncomplete end
+    if not info.splitKnown then lines[#lines + 1] = L.xpStatsBonusUnavailable
+    elseif not info.eligibleKnown and (not info.secondsToLevel or info.estimateMethod == "observed") then
+        lines[#lines + 1] = L.xpStatsEstimateUnavailable
+    end
+    if info.estimateMethod == "observed" then lines[#lines + 1] = L.xpStatsEstimateObserved end
     lines[#lines + 1] = L.xpStatsTooltipClick
     return lines
 end
@@ -318,11 +369,15 @@ end
 
 function ZP:ResetXPStats()
     generation, queued = generation + 1, false
+    samplePending = false
     ClearPending()
     state = NewState()
     ZwykPlusXPState = state
     baseline, clock = Snapshot(), Call(GetTime)
-    if not baseline or not Number(clock) then state.complete = false end
+    clock = Number(clock) and clock or nil
+    samplePending = baseline == nil
+    -- An unreadable first snapshot is retried; it has not lost any recorded
+    -- interval yet. Later award events without a baseline mark a genuine gap.
     self:RefreshXPStats()
 end
 
@@ -335,7 +390,8 @@ function ZP:InitializeXPStats()
     initialized = true
     LoadState()
     baseline, clock = Snapshot(), Call(GetTime)
-    if not baseline or not Number(clock) then state.complete = false end
+    clock = Number(clock) and clock or nil
+    samplePending = baseline == nil
     if StaticPopupDialogs then
         StaticPopupDialogs.ZWYKPLUS_RESET_XP_STATS = {
             text = L.xpStatsResetTitle, button1 = L.xpStatsResetAccept, button2 = L.xpStatsResetCancel,
@@ -344,14 +400,15 @@ function ZP:InitializeXPStats()
         }
     end
     for _, event in ipairs({"PLAYER_ENTERING_WORLD", "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP",
-        "UPDATE_EXHAUSTION", "CHAT_MSG_COMBAT_XP_GAIN", "QUEST_TURNED_IN", "PLAYER_LOGOUT"}) do
+        "UPDATE_EXHAUSTION", "CHAT_MSG_COMBAT_XP_GAIN", "QUEST_TURNED_IN", "PLAYER_REGEN_ENABLED", "PLAYER_LOGOUT"}) do
         pcall(events.RegisterEvent, events, event)
     end
     events:SetScript("OnEvent", function(_, event, arg, xpReward)
         if event == "PLAYER_LOGOUT" then
             generation, queued = generation + 1, false
-            Sample()
-            AccrueTime()
+            if Sample(true) == false or AccrueTime() == false then
+                state.complete, state.splitKnown, state.eligibleKnown = false, false, false
+            end
         elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
             local amount, bonus, kill = CombatGain(arg)
             if amount then
@@ -368,7 +425,7 @@ function ZP:InitializeXPStats()
             if Number(arg) and arg >= 1 then wantedLevel = math.max(wantedLevel or 0, arg) end
             QueueSample()
         elseif event == "PLAYER_XP_UPDATE" then
-            if Readable(arg) and arg == "player" then QueueSample() end
+            if Readable(arg) and arg == "player" then pending.xpChanged = true; QueueSample() end
         else
             QueueSample()
         end
@@ -379,6 +436,7 @@ function ZP:InitializeXPStats()
         if updateElapsed < 1 then return end
         updateElapsed = 0
         AccrueTime()
+        if samplePending then QueueSample() end
         ZP:RefreshXPStats()
     end)
     self:RefreshXPStats()

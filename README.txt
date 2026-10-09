@@ -1,4 +1,4 @@
-ZwykPlus 1.20.0 - WoW Forever
+ZwykPlus 1.20.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,22 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+FIXES IN 1.20.1
+XP/hour no longer disappears permanently after one incomplete XP sample.
+Keep prior counters, recover temporary unreadable XP/time intervals and
+wait for stable level transitions rather than count an intermediate zero.
+Queued XP messages get a short settling window for rested classification.
+
+Genuinely incomplete totals display with ~ and an explanation. If the
+rested split/reserve is unavailable, the level estimate uses observed XP/hour
+with ~ and clearly states that remaining rested XP is not modeled. The
+unknown rate without rested bonus stays --; private current XP has no ETA.
+
+Include XPStats.lua, then /reload. A left-click reset on the XP bar starts a
+fresh average if desired; existing statistics are not automatically deleted.
+EN/FR event and native bar/tooltip tests pass. Client event timing still
+needs checking; very late messages can leave classification partial.
 
 ADDITIONS IN 1.20.0
 New Casting settings, both features off by default:

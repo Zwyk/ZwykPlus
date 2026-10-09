@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.20.0**. Interface version: **16001**.
+Current version: **1.20.1**. Interface version: **16001**.
 
 ## Features
 
@@ -28,6 +28,15 @@ Current version: **1.20.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff reminders start disabled under Auras.
+
+## Changes in 1.20.1
+
+- Fix XP/hour disappearing permanently after one incomplete sample, even while XP gains continue recording. Existing counters remain intact. Show observed XP/hour from the recorded totals; genuinely incomplete history uses a **~** marker and an explanation instead of hiding all calculated fields.
+- Preserve the last valid XP baseline and queued award metadata during temporary unreadable snapshots. Retry until a readable sample can recover the interval; preserve the clock across transient failures. Wait for consistent XP/level/maximum values during level transitions, preventing an intermediate zero-XP sample from overcounting the next level. Allow a short settling window for XP messages that arrive after the native XP update.
+- Keep the rested-aware level projection when its inputs are known. If rested-bonus classification or the current reserve is unavailable, show a **~** estimate using observed XP/hour and clearly state that it does not adjust for remaining rested XP. The unknown rate without rested bonus stays unavailable. No estimate is invented from private current XP values.
+- Update English/French bar and tooltip text live, including reset and warning changes. Include **XPStats.lua** when updating, then `/reload`. Resetting with a left-click on the XP bar remains optional; it starts a fresh average when older history cannot be recovered.
+
+The screenshot's recorded 6,415 XP over 43m45s now produces approximately 8,798 XP/hour, and its remaining 5,788 XP gives a historical-rate projection of 39m29s. Focused event/native-UI regressions cover login, clock and XP recovery, level ordering, rested depletion, private data, persisted counters, resets and open-tooltip refreshes in English/French. Actual client XP and chat event timing still needs an in-game check. Very late or unclassifiable messages may conservatively leave the rested split unknown or mark saved history partial; useful observed rates remain visible.
 
 ## Changes in 1.20.0
 
