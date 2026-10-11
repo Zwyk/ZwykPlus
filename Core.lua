@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.22.0"
+ZP.version = "1.22.1"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -23,7 +23,6 @@ local defaults = {
     portraitClassBackground = true,
     frameClassColors = false,
     manaSpark = false,
-    manaSparkRegenTicks = false,
     castTargetNames = false,
     itemBindingIcons = false,
     restedXP = true,
@@ -117,7 +116,8 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 23
+    ZwykPlusDB.manaSparkRegenTicks = nil
+    ZwykPlusDB.version = 24
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -299,7 +299,7 @@ function ZP:SetOption(key, value)
         if self.RefreshPortraits then self:RefreshPortraits(false) end
     elseif key == "frameClassColors" then
         if self.RefreshNameColors then self:RefreshNameColors() end
-    elseif key == "manaSpark" or key == "manaSparkRegenTicks" then
+    elseif key == "manaSpark" then
         if self.RefreshManaSpark then self:RefreshManaSpark() end
     elseif key == "castTargetNames" then
         if self.RefreshCastTargets then self:RefreshCastTargets() end

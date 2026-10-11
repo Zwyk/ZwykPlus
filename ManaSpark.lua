@@ -1,11 +1,11 @@
 local _, ZP = ...
 local events, timer, timerSpan, duration, overlay, spark, bar
-local initialized, enabled, ticks, mana = false, false, false, false
-local sweepEnd, window, manaUpdated
+local initialized, enabled, mana = false, false, false
+local sweepEnd
 local Fail
 local hooked = setmetatable({}, {__mode = "k"})
 local manaType = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
-local FIVE_SECONDS, REGEN_INTERVAL = 5, 2
+local FIVE_SECONDS = 5
 
 local function Public(value)
     if issecretvalue and issecretvalue(value) then return false end
@@ -43,7 +43,7 @@ end
 
 local function Draw()
     if not overlay then return end
-    if enabled and sweepEnd and mana and Visible() and (window or ticks) then
+    if enabled and sweepEnd and mana and Visible() then
         local ok = pcall(overlay.SetTimerDuration, overlay, duration, Enum.StatusBarInterpolation.Immediate,
             Enum.StatusBarTimerDirection.ElapsedTime)
         if not ok then Fail(); return end
@@ -55,7 +55,7 @@ end
 
 local function Idle()
     if timer then timer:Stop() end
-    sweepEnd, window, manaUpdated = nil, false, false
+    sweepEnd = nil
     if overlay then overlay:Hide() end
 end
 
@@ -63,22 +63,20 @@ Fail = function()
     enabled = false
     Idle()
     events:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-    events:UnregisterEvent("UNIT_POWER_UPDATE")
     if ZP.WarnOnce and ZP.L and ZP.L.manaSparkUnavailable then
         ZP:WarnOnce("manaSparkUnavailable", ZP.L.manaSparkUnavailable)
     end
 end
 
-local function Sweep(length, start)
+local function Sweep()
     local now = Call(GetTime)
     if not Number(now) then Idle(); return end
-    if not Number(start) or start + length <= now then start = now end
-    sweepEnd = start + length
-    if not pcall(duration.SetTimeFromStart, duration, start, length) then Fail(); return end
+    sweepEnd = now + FIVE_SECONDS
+    if not pcall(duration.SetTimeFromStart, duration, now, FIVE_SECONDS) then Fail(); return end
     Draw()
     if not enabled then return end
     timer:Stop()
-    timerSpan:SetDuration(sweepEnd - now)
+    timerSpan:SetDuration(FIVE_SECONDS)
     timer:Play()
 end
 
@@ -86,10 +84,8 @@ local function UpdateListening()
     if not events then return end
     -- Only addon-owned frames and event registrations change in combat.
     events:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-    events:UnregisterEvent("UNIT_POWER_UPDATE")
     if enabled and overlay and Visible() then
         events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
-        if ticks then events:RegisterUnitEvent("UNIT_POWER_UPDATE", "player") end
     else
         Idle()
     end
@@ -138,14 +134,7 @@ local function Attach()
         spark:SetBlendMode("ADD")
         timer = events:CreateAnimationGroup()
         timerSpan = timer:CreateAnimation("Animation")
-        timer:SetScript("OnFinished", function()
-            if enabled and ticks and Visible() and (window or manaUpdated) then
-                window, manaUpdated = false, false
-                Sweep(REGEN_INTERVAL, sweepEnd)
-            else
-                Idle()
-            end
-        end)
+        timer:SetScript("OnFinished", Idle)
     end
     bar = found
     overlay:ClearAllPoints()
@@ -186,8 +175,7 @@ end
 function ZP:RefreshManaSpark()
     if not initialized then return end
     enabled = self.db and self.db.manaSpark == true or false
-    ticks = self.db and self.db.manaSparkRegenTicks == true or false
-    -- Non-mana classes never allocate an overlay or cast/regen listeners.
+    -- Non-mana classes never allocate an overlay or cast listeners.
     local class
     if UnitClass then
         local ok, _, second = pcall(UnitClass, "player")
@@ -227,13 +215,7 @@ function ZP:InitializeManaSpark()
             return
         elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
             if enabled and Visible() and CostsMana(spellID) then
-                window, manaUpdated = true, false
-                Sweep(FIVE_SECONDS)
-            end
-        elseif event == "UNIT_POWER_UPDATE" then
-            -- Regen tick cadence is an estimate; no current/max mana is read.
-            if Public(arg2) and arg2 == "MANA" and not window and ticks then
-                if sweepEnd then manaUpdated = true else Sweep(REGEN_INTERVAL) end
+                Sweep()
             end
         end
     end)

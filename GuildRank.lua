@@ -39,6 +39,41 @@ local function Unit(tooltip)
     end
 end
 
+local function AppendGuildRank(tooltip, guild, rank)
+    if type(tooltip.NumLines) ~= "function" then return end
+    local ok, count = pcall(tooltip.NumLines, tooltip)
+    if not ok or not Readable(count) or type(count) ~= "number"
+        or count < 2 or count == math.huge or count % 1 ~= 0 then return end
+    local name
+    if type(tooltip.GetName) == "function" then
+        ok, name = pcall(tooltip.GetName, tooltip)
+        if not ok or not String(name) then name = nil end
+    end
+    -- Titles can move the guild row. Match its public text on every rebuild,
+    -- preserving native formatting rather than assuming a fixed line number.
+    for index = 2, count do
+        local line
+        if type(tooltip.GetLeftFontString) == "function" then
+            ok, line = pcall(tooltip.GetLeftFontString, tooltip, index)
+            if not ok or not Readable(line) then line = nil end
+        end
+        if not line and name then line = _G[name .. "TextLeft" .. index] end
+        if Public(line) and type(line.GetText) == "function" and type(line.SetText) == "function" then
+            local text
+            ok, text = pcall(line.GetText, line)
+            if ok and String(text) then
+                local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+                if plain == guild or plain == "<" .. guild .. ">" then
+                    return pcall(line.SetText, line, text .. " - " .. rank)
+                end
+                if plain == guild .. " - " .. rank or plain == "<" .. guild .. "> - " .. rank then
+                    return true
+                end
+            end
+        end
+    end
+end
+
 local HookTooltip
 local function AddRank(tooltip, unit)
     if not Public(tooltip) then return end
@@ -51,10 +86,10 @@ local function AddRank(tooltip, unit)
     if not ok or not Readable(player) or player ~= true then return end
     local guild, rank
     ok, guild, rank = pcall(GetGuildInfo, unit)
-    if not ok or not String(guild) or not String(rank) or type(tooltip.AddDoubleLine) ~= "function" then return end
+    if not ok or not String(guild) or not String(rank) then return end
     -- Use the actual rank title from this player's guild, never our own roster
     -- or a numeric rank index. Native rebuilding owns the rest of the tooltip.
-    local added = pcall(tooltip.AddDoubleLine, tooltip, ZP.L.guildRank, rank, 0.65, 0.65, 0.65, 0.25, 1, 0.25)
+    local added = AppendGuildRank(tooltip, guild, rank)
     if added then record.added = true end
     return added
 end

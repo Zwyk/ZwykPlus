@@ -626,10 +626,9 @@ local function BuildPages()
     page = pages.casting
     Label(page, L.manaSparkGroup, 0, 0, 370, "GameFontNormal")
     Checkbox(page, "manaSpark", L.manaSpark, 0, -23, 355, nil, L.manaSparkHelp)
-    Checkbox(page, "manaSparkRegenTicks", L.manaSparkRegenTicks, 23, -54, 332, "manaSpark", L.manaSparkRegenTicksHelp)
-    Label(page, L.manaSparkNote, 28, -94, 365)
-    Label(page, L.castTargetsGroup, 0, -158, 370, "GameFontNormal")
-    Checkbox(page, "castTargetNames", L.castTargetNames, 0, -181, 355, nil, L.castTargetNamesHelp)
+    Label(page, L.manaSparkNote, 28, -63, 365)
+    Label(page, L.castTargetsGroup, 0, -127, 370, "GameFontNormal")
+    Checkbox(page, "castTargetNames", L.castTargetNames, 0, -150, 355, nil, L.castTargetNamesHelp)
 
     page = pages.travel
     Label(page, L.flightTimerTitle, 0, 0, 370, "GameFontNormal")

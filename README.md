@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.22.0**. Interface version: **16001**.
+Current version: **1.22.1**. Interface version: **16001**.
 
 ## Features
 
@@ -10,7 +10,7 @@ Current version: **1.22.0**. Interface version: **16001**.
 - Increase the maximum camera distance, with optional full zoom out on login.
 - Enable available mineral, herb and fish tracking on login when inactive.
 - Show the caster of a buff or debuff in its tooltip, with player names in their class color.
-- Optionally show a hovered player's guild rank title in their tooltip, including players from other guilds.
+- Optionally show a hovered player's guild rank beside their guild name in the native tooltip, including players from other guilds.
 - Add estimated spell DPS/HPS and damage/healing per resource cost to supported native spell tooltips, with periodic and AoE comparisons.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
 - Show the rested XP reserve, as an amount and percentage of a level, on the native XP bar and its tooltip.
@@ -20,7 +20,7 @@ Current version: **1.22.0**. Interface version: **16001**.
 - Optionally remind you to maintain any Paladin's Judgement of the Crusader on your target, with missing and near-expiry glows.
 - Optionally replace native 2D portraits with head-focused 3D portraits using the idle animation, with a 2D fallback.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
-- Optionally show a five-second mana spark on the native player mana bar, with estimated regeneration tick sweeps.
+- Optionally show a five-second mana spark on the native player mana bar after a mana-cost cast.
 - Optionally show actual spell-target names below native player, target and focus cast bars.
 - Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
 - Optionally show an eye above existing visible, accessible nameplates for units currently targeting you.
@@ -30,6 +30,13 @@ Current version: **1.22.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.22.1
+
+- Move the guild rank onto the existing guild line, for example **Taur Of Duty - Member**, retaining its native color and formatting. Find the guild row on each rebuild, including when titles change its position. Unreadable or unmatched guild rows are left untouched; no separate rank line is added at the bottom. The existing toggle and live refresh remain available under **Auras → Tooltips**.
+- Remove **Also show estimated regen ticks**, its repeating two-second sweeps and its mana-update listener. Discard the obsolete saved tick preference. The five-second rule spark remains, starts/restarts on successful mana-cost casts, and hides when the sweep finishes. Saved choices for the spark and cast-target names are preserved.
+
+Focused mocked checks cover native guild-line decoration, formatting, tooltip reuse and live toggles, as well as five-second spark timing and the removal of repeated regen sweeps. Actual client rendering still needs an in-game check. Update the addon and `/reload`.
 
 ## Changes in 1.22.0
 

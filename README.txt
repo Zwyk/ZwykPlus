@@ -1,4 +1,4 @@
-ZwykPlus 1.22.0 - WoW Forever
+ZwykPlus 1.22.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,18 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+CHANGES IN 1.22.1
+Guild rank now appears beside the native guild name: Taur Of Duty - Member.
+Keep native colors/formatting and find the row again when titles move it.
+Unreadable or unmatched guild rows stay unchanged; no bottom rank line.
+The existing Auras -> Tooltips option and live refresh remain available.
+
+Remove estimated two-second regen ticks and their option. Clear the obsolete
+saved tick preference. The five-second rule spark still starts/restarts on
+mana-cost casts and hides after five seconds. Other saved choices stay.
+Update the addon, then /reload. Focused mocked checks pass; please check
+actual tooltip/spark rendering in the game.
 
 ADDITION IN 1.22.0
 Auras -> Tooltips -> Guild rank in player tooltips (off by default):
