@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.21.1"
+ZP.version = "1.22.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -13,6 +13,7 @@ local defaults = {
     auraSource = true,
     auraSourceTarget = true,
     spellTooltipMetrics = true,
+    guildRankTooltip = false,
     chatItemIcons = true,
     chatClassIcons = true,
     chatRaceIcons = true,
@@ -116,7 +117,7 @@ function ZP:InitializeDB()
     end
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
-    ZwykPlusDB.version = 22
+    ZwykPlusDB.version = 23
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -273,6 +274,8 @@ function ZP:SetOption(key, value)
         if self.RefreshAuraTarget then self:RefreshAuraTarget() end
     elseif key == "spellTooltipMetrics" then
         if self.RefreshSpellTooltips then self:RefreshSpellTooltips() end
+    elseif key == "guildRankTooltip" then
+        if self.RefreshGuildRankTooltip then self:RefreshGuildRankTooltip() end
     elseif key == "portraits3D" then
         -- Native portrait mode is applied on reload; the checkbox is saved now.
     elseif key == "buffReminderBeforeGlow" or key == "buffReminderAfterGlow" or key == "buffReminderColor"
@@ -320,6 +323,7 @@ function ZP:ApplyAll()
     self:ApplyTracking()
     if self.RefreshChatIcons then self:RefreshChatIcons() end
     if self.RefreshSpellTooltips then self:RefreshSpellTooltips() end
+    if self.RefreshGuildRankTooltip then self:RefreshGuildRankTooltip() end
     if self.RefreshPortraits then self:RefreshPortraits(false) end
     if self.RefreshNameColors then self:RefreshNameColors() end
     if self.RefreshManaSpark then self:RefreshManaSpark() end
@@ -368,6 +372,7 @@ events:SetScript("OnEvent", function(self, event, name)
     elseif event == "PLAYER_LOGIN" then
         ZP:ApplyErrors()
         if ZP.InitializeAuraTooltips then ZP:InitializeAuraTooltips() end
+        if ZP.InitializeGuildRankTooltip then ZP:InitializeGuildRankTooltip() end
         if ZP.InitializeAuraSourceTarget then ZP:InitializeAuraSourceTarget() end
         if ZP.InitializeSpellTooltips then ZP:InitializeSpellTooltips() end
         if ZP.InitializeChatIcons then ZP:InitializeChatIcons() end

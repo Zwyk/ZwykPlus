@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.21.1**. Interface version: **16001**.
+Current version: **1.22.0**. Interface version: **16001**.
 
 ## Features
 
@@ -10,6 +10,7 @@ Current version: **1.21.1**. Interface version: **16001**.
 - Increase the maximum camera distance, with optional full zoom out on login.
 - Enable available mineral, herb and fish tracking on login when inactive.
 - Show the caster of a buff or debuff in its tooltip, with player names in their class color.
+- Optionally show a hovered player's guild rank title in their tooltip, including players from other guilds.
 - Add estimated spell DPS/HPS and damage/healing per resource cost to supported native spell tooltips, with periodic and AoE comparisons.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
 - Show the rested XP reserve, as an amount and percentage of a level, on the native XP bar and its tooltip.
@@ -29,6 +30,14 @@ Current version: **1.21.1**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.22.0
+
+- Add **Auras → Tooltips → Guild rank in player tooltips**, disabled by default. Hovering a player adds a **Guild rank: Officer** line using their guild's actual rank title, including custom titles and other guilds. NPCs, guildless players and inaccessible or empty guild/rank data are omitted. No guild roster request or inspection is needed.
+- Use the native unit-tooltip postprocessor, with guarded public `SetUnit` hooks as a fallback. Clear the owned-line flag when the native tooltip is rebuilt, avoiding duplicate processor/setter additions or a stale rank on the next hovered unit. Toggling the setting refreshes visible unit tooltips through their existing native data, retaining normal content and owners. Guild/rank updates refresh visible unit tooltips without a polling loop.
+- Fit the new English/French setting into the existing Auras page; existing choices and the seven-category window are preserved. Include **GuildRank.lua** when updating, then `/reload` and enable the setting.
+
+Focused mocked checks cover other-guild ranks, custom titles, tooltip reuse, live toggles, native and fallback hooks, unavailable/private data and forbidden tooltips. Actual game-client rendering still needs an in-game check. The native [unit-tooltip processor](https://github.com/Gethe/wow-ui-source/blob/943764493e6b16d63ded3ab304150d1f05e58b57/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipDataHandler.lua) and [guild-info return order](https://github.com/Gethe/wow-ui-source/blob/943764493e6b16d63ded3ab304150d1f05e58b57/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/TabardFrame.lua) were verified against Forever UI 1.60.1 (70338).
 
 ## Changes in 1.21.1
 

@@ -1,4 +1,4 @@
-ZwykPlus 1.21.1 - WoW Forever
+ZwykPlus 1.22.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,19 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITION IN 1.22.0
+Auras -> Tooltips -> Guild rank in player tooltips (off by default):
+Add a Guild rank: Officer line when hovering a player. Uses the actual rank
+title, including custom titles and players from other guilds. Guildless
+players, NPCs and unavailable guild/rank data have no extra line.
+No guild roster request or inspection is needed.
+
+Native unit-tooltip processing with setter fallback prevents duplicate
+lines and stale ranks on reused tooltips. Live toggles rebuild through the
+normal tooltip pipeline. English/French setup and saved choices are retained.
+Include GuildRank.lua when updating, then /reload and enable the option.
+Focused mocked checks pass; actual client rendering needs an in-game check.
 
 FIXES IN 1.21.1
 Healer mana averages now include readable native UnitPowerPercent values,
