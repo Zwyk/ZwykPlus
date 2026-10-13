@@ -1,4 +1,4 @@
-ZwykPlus 1.22.1 - WoW Forever
+ZwykPlus 1.22.2 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,24 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+FIXES IN 1.22.2
+Keep unchanged glow animations running through ordinary aura updates,
+without a hide/restart cycle. Repeated native configuration preserves loop
+phase; recovery uses SetPlaying without reading native animation progress.
+
+Check each mapped buff family separately when scoped aura APIs are available.
+Require public policy for every rank/variant, public numeric timing and
+confirmed whole-family absence. Unrelated private auras no longer discard
+readable buffs' expiry timers, including in combat. Refreshes, early removal,
+another active rank and newly private data still suppress stale reminders.
+Older clients retain the complete guarded indexed scan.
+
+Private buff timing cannot support a post-expiration percentage reminder.
+/zp buffs now reports scan method, readable/restricted families and unreadable
+timing. Capture its output shortly before/after expiry if a reminder is absent.
+Update and /reload. Focused mocked regressions pass; actual combat visuals
+need checking in game. Existing options and glow appearance stay saved.
 
 CHANGES IN 1.22.1
 Guild rank now appears beside the native guild name: Taur Of Duty - Member.

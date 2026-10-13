@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.22.1"
+ZP.version = "1.22.2"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -419,6 +419,8 @@ function ZP:ShowBuffReminderDiagnostics()
         report.nativeGlowLastError or "--"))
     print(string.format(L.buffReminderDiagnosticExpiry, report.publicTimedAuras or 0, report.postExpiryTimers or 0,
         report.postExpiryActive or 0, report.historyValidated and L.yes or L.no))
+    print(string.format(L.buffReminderDiagnosticScope, report.expiryScanMethod or "--",
+        report.expiryAllowedFamilies or 0, report.expiryBlockedFamilies or 0, report.unreadableTimedAuras or 0))
     print(string.format(L.buffReminderDiagnosticDiscard, report.expiryLastReason or "--",
         report.expiryLastSpellID and tostring(report.expiryLastSpellID) or "--",
         report.expiryLastRemaining and string.format("%.2f", report.expiryLastRemaining) or "--"))

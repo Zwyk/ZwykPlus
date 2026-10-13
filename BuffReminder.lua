@@ -8,6 +8,7 @@ local expiryLastRemovalRemaining, expiryNearRemovalSpellID, expiryNearRemovalRem
 local expiryNearRemovalCount, expiryRemovalTolerance = 0, 0.2
 local elapsed, scanElapsed = 0, 0
 local scanStatus = "disabled"
+local expiryScanMethod, expiryAllowedFamilies, expiryBlockedFamilies = "indexed", 0, 0
 
 -- Classic rank families, including their group versions. Only direct spell
 -- buttons on Blizzard bars are supported; macros are deliberately not guessed.
@@ -181,13 +182,17 @@ local function NativeReady()
 end
 
 local function ConfigureNative(button, entry)
-    local wasReady = entry.nativeReady and entry.nativeFamily == entry.family and entry.container ~= nil
+    local wasReady = entry.nativeReady and entry.nativeFamily == entry.family and entry.containerEnabled
     entry.nativeReady, entry.nativePending = false, false
     if not entry.family or not NativeReady() then return end
     local style, red, green, blue, opacity = Appearance(false)
     if entry.nativeFamily == entry.family and entry.nativeThreshold == threshold
         and entry.nativeColorCurve == colorCurve and entry.nativeStyle == style and entry.container then
-        entry.nativeReady = pcall(entry.container.SetEnabled, entry.container, true)
+        if entry.containerEnabled then entry.nativeReady = true
+        else
+            entry.nativeReady = pcall(entry.container.SetEnabled, entry.container, true)
+            entry.containerEnabled = entry.nativeReady
+        end
         return
     end
     if InCombat() then
@@ -273,10 +278,11 @@ local function ConfigureNative(button, entry)
     if ok then
         entry.nativeFamily, entry.nativeThreshold, entry.nativeColorCurve = entry.family, threshold, colorCurve
         entry.nativeStyle = style
-        entry.nativeReady = true
+        entry.nativeReady, entry.containerEnabled = true, true
     else
         if entry.wrapper then pcall(entry.wrapper.Hide, entry.wrapper) end
         if entry.container then pcall(entry.container.SetEnabled, entry.container, false) end
+        entry.containerEnabled = false
     end
 end
 
@@ -328,7 +334,120 @@ local function BuildButtons()
     end
 end
 
-local function ScanAuras()
+local function ReadAura(aura, id, family, now, after)
+    local record = {spellID = id}
+    local api, instance = C_UnitAuras, aura.auraInstanceID
+    if Number(instance) and api.GetAuraDuration and curve then
+        local ok, duration = pcall(api.GetAuraDuration, "player", instance)
+        if ok and Readable(duration) and duration and type(duration.EvaluateRemainingPercent) == "function" then
+            record.duration = duration
+        end
+    end
+    -- Native duration handles can render private timing, but only public
+    -- numbers may arm a reminder that survives the aura's removal.
+    local total, expires = aura.duration, aura.expirationTime
+    if Number(total) and total > 0 and Number(expires) and expires > 0 then
+        record.expires, record.total = expires, total
+        local previous = expiryHistory[family]
+        if mappedFamilies[family] and after > 0 and expires > now then
+            expiryHistory[family] = {expires = expires, total = total,
+                spellID = id, instanceID = Number(instance) and instance or nil}
+        elseif not previous or previous.expires ~= expires or previous.total ~= total then
+            DropHistory(family, "timing-changed")
+        end
+    else
+        record.unreadableTiming = not Number(total) or not Number(expires)
+        DropHistory(family, "missing-public-timing")
+    end
+    return record
+end
+
+local function ValidateHistory(seen, removals, now, after)
+    for family, history in pairs(expiryHistory) do
+        local finish = history.expires + history.total * after
+        -- Removal can precede expiry by a few ms. Keep the scheduled start,
+        -- while genuinely early cancellation/consumption remains suppressed.
+        local removalTime = not seen[family] and (history.removedAt or removals[family] or now)
+        local removalRemaining = removalTime and history.expires - removalTime
+        if removalTime and removalTime < history.expires - expiryRemovalTolerance then
+            DropHistory(family, "early-removal", removalTime)
+        elseif not Number(finish) or now >= finish then
+            DropHistory(family, "expired-window")
+        elseif removalTime then
+            history.removedAt = removalTime
+            if removalRemaining > 0 and not history.nearExpiryRemoval then
+                history.nearExpiryRemoval = true
+                expiryNearRemovalCount = expiryNearRemovalCount + 1
+                expiryNearRemovalSpellID, expiryNearRemovalRemaining = history.spellID, removalRemaining
+            end
+        end
+    end
+    historyValidated = true
+end
+
+local function PublicFamilyQueries(family)
+    local api = C_Secrets
+    local function IsPublic(fn, ...)
+        if type(fn) ~= "function" then return false end
+        local ok, value = pcall(fn, ...)
+        return ok and Readable(value) and value == false
+    end
+    if IsPublic(api.HasSecretRestrictions) then return true end
+    for _, id in ipairs(family) do
+        -- A concealed lookup can also return nil. Every rank needs explicit
+        -- public policy before an empty result can establish family absence.
+        if not IsPublic(api.ShouldSpellAuraBeSecret, id) then return false end
+    end
+    return true
+end
+
+local function ScanSpellFamilies(api, getter, unitGetter)
+    records, historyValidated = {}, false
+    local removals = removedAt
+    removedAt = {}
+    local now, after, seen = GetTime(), AfterFraction(), {}
+    expiryScanMethod, expiryAllowedFamilies, expiryBlockedFamilies = "per-spell", 0, 0
+    scanStatus = "ok"
+    if after == 0 then DropAllHistory("after-disabled") end
+    for family in pairs(mappedFamilies) do
+        local allowed, record, duplicate = PublicFamilyQueries(family), nil, false
+        local reason = "restricted-family-policy"
+        if allowed then
+            for _, id in ipairs(family) do
+                local ok, aura
+                if unitGetter then ok, aura = pcall(getter, "player", id)
+                else ok, aura = pcall(getter, id) end
+                if not ok or not Readable(aura) then
+                    allowed, reason = false, "restricted-family-result"
+                    break
+                elseif aura ~= nil then
+                    if type(aura) ~= "table" or not Number(aura.spellId) or aura.spellId ~= id then
+                        allowed, reason = false, "restricted-family-identity"
+                        break
+                    end
+                    if record then duplicate = true end
+                    record = ReadAura(aura, id, family, now, after)
+                end
+            end
+        end
+        if not allowed then
+            DropHistory(family, reason)
+            expiryBlockedFamilies = expiryBlockedFamilies + 1
+            scanStatus = "partial"
+        elseif duplicate then
+            DropHistory(family, "duplicate-family")
+        else
+            expiryAllowedFamilies = expiryAllowedFamilies + 1
+            records[family] = record
+            seen[family] = record ~= nil
+        end
+    end
+    -- Only histories whose complete family was checked above remain here.
+    ValidateHistory(seen, removals, now, after)
+end
+
+local function ScanIndexedAuras()
+    expiryScanMethod, expiryAllowedFamilies, expiryBlockedFamilies = "indexed", 0, 0
     records = {}
     historyValidated = false
     local removals = removedAt
@@ -353,31 +472,7 @@ local function ScanAuras()
             if family then
                 seen[family] = true
                 if records[family] then duplicate[family] = true end
-                local record = {spellID = id}
-                local instance = aura.auraInstanceID
-                if Number(instance) and api.GetAuraDuration and curve then
-                    local durationOK, duration = pcall(api.GetAuraDuration, "player", instance)
-                    if durationOK and Readable(duration) and duration
-                        and type(duration.EvaluateRemainingPercent) == "function" then
-                        record.duration = duration
-                    end
-                end
-                -- A duration handle may contain private timing. Only these
-                -- independently readable numbers can arm a post-expiry timer.
-                local total, expires = aura.duration, aura.expirationTime
-                if Number(total) and total > 0 and Number(expires) and expires > 0 then
-                    record.expires, record.total = expires, total
-                    local previous = expiryHistory[family]
-                    if mappedFamilies[family] and after > 0 and expires > now then
-                        expiryHistory[family] = {expires = expires, total = total,
-                            spellID = id, instanceID = Number(instance) and instance or nil}
-                    elseif not previous or previous.expires ~= expires or previous.total ~= total then
-                        DropHistory(family, "timing-changed")
-                    end
-                else
-                    DropHistory(family, "missing-public-timing")
-                end
-                records[family] = record
+                records[family] = ReadAura(aura, id, family, now, after)
             end
         else
             identityBlocked = true
@@ -391,35 +486,29 @@ local function ScanAuras()
         DropAllHistory(identityBlocked and "restricted-identities" or "incomplete-scan")
         return
     end
-    for family, history in pairs(expiryHistory) do
-        local finish = history.expires + history.total * after
-        -- Aura removal can precede its public expiration clock by a few ms.
-        -- Allow one render interval; still begin the glow at the original
-        -- expiration time. Cancels in this narrow window are indistinguishable
-        -- from natural expiry, while genuinely early removal stays suppressed.
-        local removalTime = not seen[family] and (history.removedAt or removals[family] or now)
-        local removalRemaining = removalTime and history.expires - removalTime
-        if removalTime and removalTime < history.expires - expiryRemovalTolerance then
-            DropHistory(family, "early-removal", removalTime)
-        elseif not Number(finish) or now >= finish then
-            DropHistory(family, "expired-window")
-        elseif removalTime then
-            history.removedAt = removalTime
-            if removalRemaining > 0 and not history.nearExpiryRemoval then
-                history.nearExpiryRemoval = true
-                expiryNearRemovalCount = expiryNearRemovalCount + 1
-                expiryNearRemovalSpellID, expiryNearRemovalRemaining = history.spellID, removalRemaining
-            end
+    ValidateHistory(seen, removals, now, after)
+end
+
+local function ScanAuras()
+    local api = C_UnitAuras
+    if api and C_Secrets then
+        if type(api.GetPlayerAuraBySpellID) == "function" then
+            ScanSpellFamilies(api, api.GetPlayerAuraBySpellID, false)
+            return
+        elseif type(api.GetUnitAuraBySpellID) == "function" then
+            ScanSpellFamilies(api, api.GetUnitAuraBySpellID, true)
+            return
         end
     end
-    historyValidated = true
+    -- Legacy clients retain the complete guarded indexed scan.
+    ScanIndexedAuras()
 end
 
 local function AfterExpiry(family, now)
     if not historyValidated then return false end
     local history = family and expiryHistory[family]
     local after = AfterFraction()
-    return history and after > 0 and now >= history.expires
+    return history and history.removedAt and not records[family] and after > 0 and now >= history.expires
         and now < history.expires + history.total * after or false
 end
 
@@ -502,13 +591,13 @@ end
 function ZP:RefreshBuffReminder(preservePreview)
     if not events then return end
     if not preservePreview then previewUntil = nil end
-    Clear()
     elapsed, scanElapsed = 0, 0
     if not Enabled() then
         Clear(true, "disabled")
         scanStatus = "disabled"
         for _, entry in pairs(buttons) do
             if entry.container then pcall(entry.container.SetEnabled, entry.container, false) end
+            entry.containerEnabled = false
         end
         if previewUntil and GetTime() < previewUntil then
             BuildCurve(); BuildButtons(); Render(); StartTicker()
@@ -556,7 +645,9 @@ function ZP:GetBuffReminderDiagnostics()
         publicAuras = 0, timingAvailable = 0, status = scanStatus, publicScanStatus = scanStatus, engineConfigured = 0,
         enginePending = 0, engineFailed = 0, nativeGlows = 0, nativeGlowFallbacks = 0,
         nativeGlowLastError = nil, previewActive = previewUntil ~= nil,
-        publicTimedAuras = 0, postExpiryTimers = 0, postExpiryActive = 0,
+        publicTimedAuras = 0, unreadableTimedAuras = 0, postExpiryTimers = 0, postExpiryActive = 0,
+        expiryScanMethod = expiryScanMethod, expiryAllowedFamilies = expiryAllowedFamilies,
+        expiryBlockedFamilies = expiryBlockedFamilies,
         historyValidated = historyValidated, expiryLastReason = expiryLastReason,
         expiryLastSpellID = expiryLastSpellID, expiryLastRemaining = expiryLastRemaining,
         expiryLastRemovalRemaining = expiryLastRemovalRemaining, expiryRemovalTolerance = expiryRemovalTolerance,
@@ -582,6 +673,7 @@ function ZP:GetBuffReminderDiagnostics()
         result.publicAuras = result.publicAuras + 1
         if record.duration or record.expires then result.timingAvailable = result.timingAvailable + 1 end
         if record.expires then result.publicTimedAuras = result.publicTimedAuras + 1 end
+        if record.unreadableTiming then result.unreadableTimedAuras = result.unreadableTimedAuras + 1 end
     end
     local now = GetTime()
     for family in pairs(expiryHistory) do
@@ -599,11 +691,13 @@ local function CapturePublicAbsences(now)
         if history.instanceID then
             local ok, aura = pcall(api.GetAuraDataByAuraInstanceID, "player", history.instanceID)
             if not ok or not Readable(aura) then
-                DropHistory(family, "restricted-removal")
+                -- A scoped scan immediately validates the whole family below;
+                -- a private instance lookup alone supplies no removal proof.
+                if expiryScanMethod ~= "per-spell" then DropHistory(family, "restricted-removal") end
             elseif aura == nil then
                 removedAt[family] = removedAt[family] and math.min(removedAt[family], now) or now
             elseif type(aura) ~= "table" then
-                DropHistory(family, "restricted-removal")
+                if expiryScanMethod ~= "per-spell" then DropHistory(family, "restricted-removal") end
             end
         end
     end
@@ -649,6 +743,8 @@ function ZP:InitializeBuffReminder()
     events:SetScript("OnEvent", function(_, event, unit, updateInfo)
         if event == "UNIT_AURA" then
             CaptureRemovalTimes(updateInfo)
+            if Enabled() then ScanAuras(); Render() end
+            return
         end
         if event == "ADDON_LOADED" then
             for _, entry in pairs(buttons) do entry.nativeFailed = nil end

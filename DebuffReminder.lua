@@ -363,6 +363,10 @@ function ZP:InitializeDebuffReminder()
         events:RegisterEvent(event)
     end
     events:SetScript("OnEvent", function(_, event)
+        if event == "UNIT_AURA" then
+            if Enabled() then ScanAuras(); Render() end
+            return
+        end
         if event == "ADDON_LOADED" then
             for _, entry in pairs(buttons) do entry.nativeFailed = nil end
         end

@@ -181,17 +181,20 @@ function ZP:ConfigureBuffNativeGlow(frame, button, threshold, style, red, green,
             end
             state.selected = layer
         else
+            -- Ordinary aura/configuration refreshes must preserve loop phase.
             for _, texture in ipairs(layer.textures) do texture:SetVertexColor(red, green, blue) end
             layer.frame:SetAlpha(opacity)
-            for _, group in ipairs(layer.groups) do group:Play() end
         end
 
         -- At fraction p the fixed mask begins at RIGHT + margin + (p-t)*K.
         -- Above t it lies past the glow; below t it sweeps over the icon rim.
         -- Its width remains K even at zero, avoiding zero-area mask leakage.
-        state.bar:ClearAllPoints()
-        state.bar:SetPoint("TOPLEFT", frame, "TOPRIGHT", margin - threshold * gateWidth, margin)
-        state.bar:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", margin - threshold * gateWidth, -margin)
+        if state.threshold ~= threshold then
+            state.bar:ClearAllPoints()
+            state.bar:SetPoint("TOPLEFT", frame, "TOPRIGHT", margin - threshold * gateWidth, margin)
+            state.bar:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", margin - threshold * gateWidth, -margin)
+            state.threshold = threshold
+        end
     end)
     if not ok then
         local state = renderers[frame]
@@ -215,9 +218,9 @@ function ZP:ResumeBuffNativeGlow(frame)
     local state = renderers[frame]
     if not state or not state.selected then return false, "native glow not configured" end
     local ok, failure = pcall(function()
-        -- Used after the public preview temporarily hides our wrapper. There
-        -- is no visibility/progress query, target mutation or script callback.
-        for _, group in ipairs(state.selected.groups) do group:Play() end
+        -- SetPlaying preserves a running loop while resuming one stopped by a
+        -- hidden wrapper. Native adoption forbids IsPlaying/progress queries.
+        for _, group in ipairs(state.selected.groups) do group:SetPlaying(true) end
     end)
     if not ok then
         return false, Public(failure) and type(failure) == "string" and failure or "native animation resume unavailable"

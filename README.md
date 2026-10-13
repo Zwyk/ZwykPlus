@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.22.1**. Interface version: **16001**.
+Current version: **1.22.2**. Interface version: **16001**.
 
 ## Features
 
@@ -30,6 +30,16 @@ Current version: **1.22.1**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.22.2
+
+- Preserve glow animation phase on ordinary aura updates. Player and target reminders immediately rescan and render without first hiding unchanged public glows or rebuilding unchanged action mappings. Native glows no longer replay loops on repeated configuration; unchanged mask anchors stay in place, and wrapper recovery uses native `SetPlaying` without querying adopted animation progress. Real style changes and lifecycle/visibility transitions still replace or stop the appropriate effect.
+- Validate post-expiration history per mapped spell family when the direct player-aura API and secrecy policy are available. Require public access for every rank/variant before querying. An unrelated private aura no longer discards readable buffs' history, so their reminders can continue in combat. Each family still requires public numeric timing and confirmed absence; refreshes, early removals, remaining ranks and inaccessible data suppress its stale timer. The complete indexed scan remains a conservative fallback on clients without the scoped APIs.
+- Keep full/legacy aura updates usable when cached-instance lookup is private but a fresh public whole-family scan validates the result. **/zp buffs** now reports the scan method, readable/restricted families and unreadable timing, alongside the existing timer/discard diagnostics. Existing thresholds, styles, color and saved options remain intact.
+
+Post-expiration reminders for private buff timing remain unsupported: native aura duration/animation bindings end with the aura, and addon Lua cannot extend a private expiration clock. Focused mocked tests cover readable combat expiry, family policy failures, private refreshes, actual absence, cancellation, native/public animation phase and English/French diagnostics. Actual combat visuals need an in-game check. Update and `/reload`; if continuation is still missing, capture **/zp buffs** shortly before and after expiry.
+
+The implementation follows the pinned [direct aura APIs](https://github.com/Gethe/wow-ui-source/blob/943764493e6b16d63ded3ab304150d1f05e58b57/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitAuraDocumentation.lua), [per-spell secrecy policy](https://github.com/Gethe/wow-ui-source/blob/943764493e6b16d63ded3ab304150d1f05e58b57/Interface/AddOns/Blizzard_APIDocumentationGenerated/SecretPredicateAPIDocumentation.lua) and [duration setter restrictions](https://github.com/Gethe/wow-ui-source/blob/943764493e6b16d63ded3ab304150d1f05e58b57/Interface/AddOns/Blizzard_APIDocumentationGenerated/LuaDurationObjectAPIDocumentation.lua).
 
 ## Changes in 1.22.1
 
