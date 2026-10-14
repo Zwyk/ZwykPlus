@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.22.2**. Interface version: **16001**.
+Current version: **1.23.0**. Interface version: **16001**.
 
 ## Features
 
@@ -14,7 +14,7 @@ Current version: **1.22.2**. Interface version: **16001**.
 - Add estimated spell DPS/HPS and damage/healing per resource cost to supported native spell tooltips, with periodic and AoE comparisons.
 - Left-click a default player buff or debuff icon to target its caster outside combat using a secure click button.
 - Show the rested XP reserve, as an amount and percentage of a level, on the native XP bar and its tooltip.
-- Show average XP/hour, the rate without earned rested bonus, and estimated time to level on the native XP bar, with a click-to-reset confirmation.
+- Show XP/hour and time to level on the native XP bar, with more statistics on hover and a click-to-reset confirmation.
 - Optionally left-click unfinished objectives in the native quest tracker to target matching NPCs outside combat, with Questie-assisted item dropper matching and an optional raid marker.
 - Optionally highlight native spell buttons shortly before supported class buffs on the player expire, with a configurable warning threshold.
 - Optionally remind you to maintain any Paladin's Judgement of the Crusader on your target, with missing and near-expiry glows.
@@ -22,7 +22,7 @@ Current version: **1.22.2**. Interface version: **16001**.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show a five-second mana spark on the native player mana bar after a mana-cost cast.
 - Optionally show actual spell-target names below native player, target and focus cast bars.
-- Optionally show small binding chain icons on native bags, BetterBags and loot-roll item icons.
+- Optionally show green open / orange closed binding chains in native bags, BetterBags, bank, trade, vendor/buyback and loot-roll item icons.
 - Optionally show an eye above existing visible, accessible nameplates for units currently targeting you.
 - Optionally show a movable healer mana summary while in a party or raid, with individual percentages and a group average.
 - Optionally show a movable taxi-flight progress bar, with estimated destination and intermediate-stop countdowns.
@@ -30,6 +30,14 @@ Current version: **1.22.2**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.23.0
+
+- Shorten spell tooltips to totals, DPS/HPS and resource efficiency. Keep duration/cast labels for periodic effects, 1/4-target comparisons and separate Seal/Judgement sections. Remove GCD details, proc rates, assumptions and formula notes; detailed troubleshooting remains under **/zp spell**. Calculations are unchanged.
+- Keep XP/h and time to level on the XP bar, plus rested XP when enabled. Hover adds session time, gained XP and XP/h without rested bonus. Remove explanatory paragraphs; `~` and `--` still mark estimates and unknown values. Tracking, rested-aware calculations and click-to-reset are unchanged.
+- Extend binding chains to native bank tabs, both sides of trade, vendor stock and buyback. Open chains are **green**; closed chains are **orange**. Read actual binding state for owned items; vendor stock and loot rolls use the item's bind type. Unknown/private states have no icon. Existing BetterBags icon sizing and open-chain transparency are preserved.
+
+English/French display, calculation and item-window checks pass in a mocked runtime; actual client visuals still need an in-game check. Update and `/reload`. Window hooks follow the current Forever [bank templates](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrameTemplates.lua), [trade layout](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/TradeFrame.xml) and [merchant updates](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/MerchantFrame.lua).
 
 ## Changes in 1.22.2
 

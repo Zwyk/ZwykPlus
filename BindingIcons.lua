@@ -1,6 +1,7 @@
 local addonName, ZP = ...
 local bagButtons = setmetatable({}, {__mode = "k"})
 local rollFrames = setmetatable({}, {__mode = "k"})
+local windowButtons = setmetatable({}, {__mode = "k"})
 local containers = setmetatable({}, {__mode = "k"})
 local hooks = setmetatable({}, {__mode = "k"})
 local globalHooks = {}
@@ -55,6 +56,8 @@ local function SetIcon(record, state, parent, icon)
     local corner = record.corner or "BOTTOMLEFT"
     texture:SetPoint(corner, icon, corner, record.x or 1, record.y or 1)
     texture:SetTexture(texturePaths[state])
+    if state == "open" then texture:SetVertexColor(0.25, 1, 0.35)
+    else texture:SetVertexColor(1, 0.55, 0.15) end
     texture:SetAlpha(state == "open" and 0.75 or 1)
     texture:Show()
 end
@@ -129,7 +132,86 @@ local function BagStateAt(bag, slot, expectedID, allowBank)
 end
 
 local function BagState(button)
+    if button.GetBankTabID and button.GetContainerSlotID then
+        return BagStateAt(button:GetBankTabID(), button:GetContainerSlotID(), nil, true)
+    end
     if button.GetBagID and button.GetID then return BagStateAt(button:GetBagID(), button:GetID()) end
+end
+
+local function LinkState(link, bound, catalog)
+    if not ItemReference(link) then return end
+    local id = type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
+    local bindType = BindType(link, id)
+    if not Readable(bound) then return end
+    if bound == true and bindType and bindType >= 0 and bindType <= 3 then return "closed" end
+    if bound == false and bindType == 2 then return "open" end
+    -- A vendor's new stock has no owned item instance yet, as on loot rolls.
+    if catalog then
+        if bindType == 1 then return "closed" end
+        if bindType == 2 then return "open" end
+    end
+end
+
+local function TradeTargetState(index, link)
+    local getter = C_TooltipInfo and C_TooltipInfo.GetTradeTargetItem
+    local lineType = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.ItemBinding
+    if not getter or not Number(lineType) then return end
+    local ok, info = pcall(getter, index)
+    if not ok or not Readable(info) or type(info) ~= "table"
+        or not Readable(info.lines) or type(info.lines) ~= "table" then return end
+    for _, line in ipairs(info.lines) do
+        if Readable(line) and type(line) == "table" and Readable(line.type) and line.type == lineType then
+            local text = line.leftText
+            if Readable(text) and type(text) == "string" then
+                if type(ITEM_SOULBOUND) == "string" and text == ITEM_SOULBOUND then
+                    return LinkState(link, true)
+                elseif type(ITEM_BIND_ON_EQUIP) == "string" and text == ITEM_BIND_ON_EQUIP then
+                    return LinkState(link, false)
+                end
+            end
+        end
+    end
+end
+
+local function WindowState(button, record)
+    local kind, owner = record.kind, record.owner
+    if not Shown(owner) then return end
+    local tab, index
+    if kind == "tradePlayer" or kind == "tradeTarget" then
+        -- Trade slot IDs belong to the row; its child item button has ID 0.
+        local row = button.GetParent and button:GetParent()
+        index = row and row.GetID and row:GetID()
+    else
+        tab = MerchantFrame and MerchantFrame.selectedTab
+        if not Readable(tab) then return end
+        index = button.GetID and button:GetID()
+    end
+    if kind == "buybackLatest" then
+        if not GetNumBuybackItems or tab ~= 1 then return end
+        index = GetNumBuybackItems()
+    end
+    if not Number(index) or index < 1 then return end
+    local linkGetter, infoGetter, boundIndex, catalog
+    if kind == "merchant" and tab == 1 then
+        linkGetter, catalog = GetMerchantItemLink, true
+    elseif (kind == "merchant" and tab == 2) or kind == "buybackLatest" then
+        linkGetter, infoGetter, boundIndex = GetBuybackItemLink, GetBuybackItemInfo, 7
+    elseif kind == "tradePlayer" then
+        linkGetter, infoGetter, boundIndex = GetTradePlayerItemLink, GetTradePlayerItemInfo, 7
+    elseif kind == "tradeTarget" then
+        linkGetter = GetTradeTargetItemLink
+    end
+    if type(linkGetter) ~= "function" then return end
+    local ok, link = pcall(linkGetter, index)
+    if not ok or not ItemReference(link) then return end
+    if kind == "tradeTarget" then return TradeTargetState(index, link) end
+    local bound
+    if infoGetter then
+        local infoOK, value = pcall(function() return select(boundIndex, infoGetter(index)) end)
+        if not infoOK then return end
+        bound = value
+    end
+    return LinkState(link, bound, catalog)
 end
 
 local function RollState(frame)
@@ -253,6 +335,26 @@ local function HookMethod(object, method, callback)
     end
 end
 
+local function RefreshWindow(button, record)
+    local icon = BagIcon(button)
+    local state
+    if ZP.db and ZP.db.itemBindingIcons and Shown(button) and icon
+        and (not icon.IsShown or Shown(icon)) then state = WindowState(button, record) end
+    SetIcon(record, state, button, icon)
+end
+
+local function RegisterWindow(button, kind, owner)
+    if not Usable(button) then return end
+    local record = windowButtons[button]
+    if not record then
+        record = {}; windowButtons[button] = record
+        button:HookScript("OnShow", function() RefreshWindow(button, record) end)
+        button:HookScript("OnHide", function() SetIcon(record) end)
+    end
+    record.kind, record.owner = kind, owner
+    RefreshWindow(button, record)
+end
+
 local function RegisterBag(button)
     if not Usable(button) then return end
     local record = bagButtons[button]
@@ -265,6 +367,9 @@ local function RegisterBag(button)
             if record.betterBagsItem then RefreshBag(button, record) end
         end)
         HookMethod(button, "Initialize", function() RefreshBag(button, record) end)
+        if button.GetBankTabID and button.GetContainerSlotID then
+            HookMethod(button, "Refresh", function() RefreshBag(button, record) end)
+        end
     end
     RefreshBag(button, record)
 end
@@ -371,6 +476,52 @@ local function RefreshContainer(frame)
     end
 end
 
+local function RefreshBank(panel)
+    if not panel or type(panel.EnumerateValidItems) ~= "function" then return end
+    HookMethod(panel, "GenerateItemSlotsForSelectedTab", RefreshBank)
+    HookMethod(panel, "RefreshAllItemsForSelectedTab", RefreshBank)
+    for button in panel:EnumerateValidItems() do RegisterBag(button) end
+end
+
+local function RefreshMerchantWindows()
+    local count = math.max(Number(MERCHANT_ITEMS_PER_PAGE) and MERCHANT_ITEMS_PER_PAGE or 10,
+        Number(BUYBACK_ITEMS_PER_PAGE) and BUYBACK_ITEMS_PER_PAGE or 12)
+    for i = 1, count do
+        RegisterWindow(_G["MerchantItem" .. i .. "ItemButton"], "merchant", MerchantFrame)
+    end
+    RegisterWindow(MerchantBuyBackItemItemButton, "buybackLatest", MerchantFrame)
+end
+
+local function RefreshTradePlayer(index)
+    if Number(index) and index >= 1 then
+        RegisterWindow(_G["TradePlayerItem" .. index .. "ItemButton"], "tradePlayer", TradeFrame)
+    end
+end
+
+local function RefreshTradeTarget(index)
+    if Number(index) and index >= 1 then
+        RegisterWindow(_G["TradeRecipientItem" .. index .. "ItemButton"], "tradeTarget", TradeFrame)
+    end
+end
+
+local function DiscoverWindows()
+    RefreshMerchantWindows()
+    local count = Number(MAX_TRADE_ITEMS) and MAX_TRADE_ITEMS or 7
+    for i = 1, count do RefreshTradePlayer(i); RefreshTradeTarget(i) end
+    for name, callback in pairs({MerchantFrame_UpdateMerchantInfo = RefreshMerchantWindows,
+        MerchantFrame_UpdateBuybackInfo = RefreshMerchantWindows,
+        TradeFrame_UpdatePlayerItem = RefreshTradePlayer, TradeFrame_UpdateTargetItem = RefreshTradeTarget}) do
+        if not globalHooks[name] and type(_G[name]) == "function" and hooksecurefunc then
+            globalHooks[name] = pcall(hooksecurefunc, name, callback)
+        end
+    end
+    HookMethod(BankPanelMixin, "GenerateItemSlotsForSelectedTab", RefreshBank)
+    HookMethod(BankPanelMixin, "RefreshAllItemsForSelectedTab", RefreshBank)
+    HookMethod(BankPanelItemButtonMixin, "Init", RegisterBag)
+    HookMethod(CamelotBankPanelItemButtonMixin, "Init", RegisterBag)
+    RefreshBank(BankFrame and BankFrame.BankPanel)
+end
+
 local function Discover()
     -- Hook the mixins for future objects and the existing instances above:
     -- native frames created earlier already have their own copied methods.
@@ -396,6 +547,8 @@ function ZP:RefreshItemBindingIcons()
     refreshing = true
     Discover()
     DiscoverBetterBags()
+    DiscoverWindows()
+    for button, record in pairs(windowButtons) do RefreshWindow(button, record) end
     for button, record in pairs(bagButtons) do RefreshBag(button, record) end
     for frame, record in pairs(rollFrames) do RefreshRoll(frame, record) end
     refreshing = false
@@ -419,7 +572,9 @@ function ZP:InitializeItemBindingIcons()
     events = CreateFrame("Frame")
     for _, event in ipairs({"BAG_UPDATE_DELAYED", "BAG_CONTAINER_UPDATE", "USE_COMBINED_BAGS_CHANGED",
         "START_LOOT_ROLL", "CANCEL_LOOT_ROLL", "PLAYER_ENTERING_WORLD", "ADDON_LOADED",
-        "ITEM_DATA_LOAD_RESULT", "GET_ITEM_INFO_RECEIVED"}) do
+        "ITEM_DATA_LOAD_RESULT", "GET_ITEM_INFO_RECEIVED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+        "PLAYERBANKSLOTS_CHANGED", "BANK_TABS_CHANGED", "MERCHANT_SHOW", "MERCHANT_CLOSED", "MERCHANT_UPDATE",
+        "TRADE_SHOW", "TRADE_CLOSED", "TRADE_UPDATE", "TRADE_PLAYER_ITEM_CHANGED", "TRADE_TARGET_ITEM_CHANGED"}) do
         events:RegisterEvent(event)
     end
     events:SetScript("OnEvent", function(_, event, id)

@@ -1,4 +1,4 @@
-ZwykPlus 1.22.2 - WoW Forever
+ZwykPlus 1.23.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,22 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+CHANGES IN 1.23.0
+Spell tooltips show totals, DPS/HPS and efficiency, with compact periodic,
+AoE and Seal/Judgement labels. Remove timing/model paragraphs.
+Detailed diagnostics remain under /zp spell. Calculations are unchanged.
+
+The XP bar shows XP/h, time to level and rested XP. Hover adds session time,
+gained XP and XP/h without rested bonus. No explanation paragraphs.
+Statistics, estimates, unknown markers and click-to-reset remain intact.
+
+Binding chains now also appear in bank tabs, trade, vendor stock and buyback.
+Green open = unbound Bind on Equip; orange closed = Soulbound (or Bind on
+Pickup for vendor stock/loot). Unknown/private data is skipped. BetterBags
+sizes and open-chain transparency stay unchanged.
+
+Update and /reload. Focused mocked checks pass; verify visuals in game.
 
 FIXES IN 1.22.2
 Keep unchanged glow animations running through ordinary aura updates,

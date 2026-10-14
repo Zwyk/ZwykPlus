@@ -232,36 +232,15 @@ local function AddReport(tooltip, report, section)
     end
     Row("spellMetricsDamage", one.damage, four and four.damage)
     Row("spellMetricsHealing", one.healing, four and four.healing)
-    if report.holyStrike and Number(report.weaponContribution) and Number(report.flatContribution)
-        and String(L.spellMetricsHolyStrikeBreakdown) then
-        tooltip:AddLine(string.format(L.spellMetricsHolyStrikeBreakdown, Format(report.weaponContribution), Format(report.flatContribution)), 0.7, 0.7, 0.7, true)
-    end
     Row("spellMetricsEffectiveDPS", one.effectiveDPS, four and four.effectiveDPS)
     Row("spellMetricsEffectiveHPS", one.effectiveHPS, four and four.effectiveHPS)
-    Row("spellMetricsCastDPS", one.dps, four and four.dps)
-    Row("spellMetricsCastHPS", one.hps, four and four.hps)
+    Row(one.effectiveDPS and "spellMetricsCastDPS" or "spellMetricsDPS", one.dps, four and four.dps)
+    Row(one.effectiveHPS and "spellMetricsCastHPS" or "spellMetricsHPS", one.hps, four and four.hps)
     for index, efficiency in ipairs(one.efficiencies) do
         local other = four and four.efficiencies[index]
         Row("spellMetricsDPC", efficiency.dpc, other and other.dpc, efficiency.name)
         Row("spellMetricsHPC", efficiency.hpc, other and other.hpc, efficiency.name)
     end
-    if report.resourceFree then tooltip:AddLine(L.spellMetricsFree, 0.7, 0.7, 0.7, true)
-    elseif report.resourceUnknown then tooltip:AddLine(L.spellMetricsVariableCost, 0.7, 0.7, 0.7, true) end
-    if report.castSeconds then tooltip:AddLine(string.format(L.spellMetricsTiming, Format(report.castSeconds)), 0.7, 0.7, 0.7)
-    else tooltip:AddLine(L.spellMetricsNoTiming, 0.7, 0.7, 0.7, true) end
-    if report.timingReference then tooltip:AddLine(string.format(L.spellMetricsTimingReference, report.castSeconds), 0.7, 0.7, 0.7, true) end
-    if Number(report.weaponSpeed) and Number(report.sealAttacks) then
-        tooltip:AddLine(string.format(L.spellMetricsSealAssumption, Format(report.sealAttacks), Format(report.weaponSpeed)), 0.7, 0.7, 0.7, true)
-    end
-    if report.groundArea then tooltip:AddLine(L.spellMetricsGroundAssumption, 0.7, 0.7, 0.7, true) end
-    if report.weaponEstimate then tooltip:AddLine(L.spellMetricsWeaponEstimate, 0.7, 0.7, 0.7, true) end
-    if report.holyStrike and String(L.spellMetricsHolyStrikeModel) then tooltip:AddLine(L.spellMetricsHolyStrikeModel, 0.7, 0.7, 0.7, true) end
-    if report.conditional == "unstunned" then tooltip:AddLine(L.spellMetricsUnstunned, 0.7, 0.7, 0.7, true) end
-    if report.partialEffects then tooltip:AddLine(L.spellMetricsPartialEffects, 0.7, 0.7, 0.7, true) end
-    if report.modelEstimate then tooltip:AddLine(L.spellMetricsSealModel, 0.7, 0.7, 0.7, true) end
-    if report.modelTalentsUnknown then tooltip:AddLine(L.spellMetricsTalentUnknown, 0.7, 0.7, 0.7, true) end
-    if Number(report.procModel) then tooltip:AddLine(string.format(L.spellMetricsProcModel, Format(report.procModel)), 0.7, 0.7, 0.7, true) end
-    tooltip:AddLine(L.spellMetricsEstimateNote, 0.65, 0.65, 0.65, true)
     tooltip:Show()
 end
 
@@ -566,12 +545,10 @@ local function Handle(tooltip, data, sourceID)
         end
         if #reports == 0 then return end
         record.added = true
-        tooltip:AddLine(L.spellMetricsHeader, 0.35, 0.75, 1)
         for _, section in ipairs(reports) do
             if section.report then AddReport(tooltip, section.report, section.kind)
             else
-                tooltip:AddLine(L["spellMetricsSection_" .. section.kind], 0.35, 0.75, 1)
-                tooltip:AddLine(L["spellMetricsUnsupported_" .. section.unsupported] or L.spellMetricsUnsupported_unavailable, 0.7, 0.7, 0.7, true)
+                tooltip:AddDoubleLine(L["spellMetricsSection_" .. section.kind], L.spellMetricsUnsupported_unavailable, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7)
             end
         end
         tooltip:Show()

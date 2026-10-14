@@ -335,8 +335,8 @@ function ZP:XPStatsBarLabel()
     if not Active() then return end
     local info = self:GetXPStatistics()
     if info then
-        local total, base, estimate = StatisticLabels(info)
-        return string.format(L.xpStatsBarFormat, total, base, estimate)
+        local total, _, estimate = StatisticLabels(info)
+        return string.format(L.xpStatsBarFormat, total, estimate)
     end
 end
 
@@ -345,22 +345,13 @@ function ZP:XPStatsTooltipLines()
     local info = self:GetXPStatistics()
     if not info then return {} end
     local total, base, estimate = StatisticLabels(info)
-    local lines = {
+    return {
         string.format(L.xpStatsTooltipElapsed, Duration(info.elapsed)),
         string.format(L.xpStatsTooltipGained, FormatNumber(info.gained)),
-        string.format(L.xpStatsTooltipBonus, FormatNumber(info.splitKnown and info.bonus or nil)),
         string.format(L.xpStatsTooltipRate, total),
         string.format(L.xpStatsTooltipBaseRate, base),
         string.format(L.xpStatsTooltipEstimate, estimate),
     }
-    if not info.complete then lines[#lines + 1] = L.xpStatsIncomplete end
-    if not info.splitKnown then lines[#lines + 1] = L.xpStatsBonusUnavailable
-    elseif not info.eligibleKnown and (not info.secondsToLevel or info.estimateMethod == "observed") then
-        lines[#lines + 1] = L.xpStatsEstimateUnavailable
-    end
-    if info.estimateMethod == "observed" then lines[#lines + 1] = L.xpStatsEstimateObserved end
-    lines[#lines + 1] = L.xpStatsTooltipClick
-    return lines
 end
 
 function ZP:RefreshXPStats()
