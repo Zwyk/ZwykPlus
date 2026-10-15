@@ -1,4 +1,4 @@
-ZwykPlus 1.25.0 - WoW Forever
+ZwykPlus 1.25.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,14 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+FIX IN 1.25.1
+The reported native Seals tracker (200340, placeholder 1323522) was found but
+rejected by generic metadata flags. Accept that explicit placeholder only
+with all seven recognized seal families and exclusively known seal links.
+Other source, learned-coverage, privacy and lifecycle checks remain in place.
+/zp buffs now prints each capability flag separately.
+Existing options stay saved. Update and /reload, then test in game.
 
 ADDITION IN 1.25.0
 Experimental: Auras -> Buff reminders -> Configure ->

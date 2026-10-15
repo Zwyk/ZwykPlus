@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.25.0**. Interface version: **16001**.
+Current version: **1.25.1**. Interface version: **16001**.
 
 ## Features
 
@@ -31,6 +31,14 @@ Current version: **1.25.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.25.1
+
+- Fix the grouped native Seals entry being rejected before any glow could bind. The supplied report identifies **BuffIcon cooldown 200340**, with placeholder spell **1323522**, complete coverage of all seven seal families and seal-only links. The placeholder itself need not satisfy ordinary learned/self-aura capability flags. Accept this explicit placeholder only with the complete recognized group; retain all learned-coverage, source-category, visibility, mixed-link and privacy checks.
+- Add individual `known`, `hasAura`, `selfAura` and `sealPlaceholder` metadata fields to **/zp buffs**, making future rejections identifiable. These are metadata diagnostics; the private live state still goes directly to rendering.
+- Existing CDM option and appearance settings are preserved. Update and `/reload`; with the grouped native Seals tracker visible and the option enabled, check both a seal active and no seal during combat.
+
+The captured entry and false/missing/private placeholder flags now pass focused mocked tests; partial groups, mixed/private links and unrelated placeholders remain rejected. Actual combat visuals still need an in-game check.
 
 ## Changes in 1.25.0
 

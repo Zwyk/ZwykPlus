@@ -28,6 +28,13 @@ local function Number(value)
         and value > 0 and value < math.huge and value == math.floor(value)
 end
 
+local function Flag(value)
+    if not Public(value) then return "private" end
+    if value == nil then return "missing" end
+    if type(value) ~= "boolean" then return "invalid" end
+    return value and "yes" or "no"
+end
+
 local function Enabled()
     local db = ZP.db
     return db and Public(db.buffReminder) and db.buffReminder == true
@@ -151,12 +158,18 @@ local function Metadata(info, required)
     for _ in pairs(families) do count = count + 1 end
     table.sort(ids)
     for i, id in ipairs(ids) do ids[i] = tostring(id) end
-    local usable = Public(info.isKnown) and info.isKnown == true
+    -- Forever's grouped Seals placeholder need not be learned or marked as
+    -- an aura itself. Its native buff row tracks the linked self-cast seals.
+    -- Require the complete recognized group before relaxing those flags.
+    local sealPlaceholder = seen[1323522] == true and count == #sealFamilies and sealOnlyLinks
+    local usable = sealPlaceholder or Public(info.isKnown) and info.isKnown == true
         and Public(info.hasAura) and info.hasAura == true
         and Public(info.selfAura) and info.selfAura == true and sealOnlyLinks
     local coversKnown = true
     for family in pairs(required) do if not families[family] then coversKnown = false end end
-    return table.concat(ids, ","), count, usable, coversKnown, sealOnlyLinks
+    local flags = "; known=" .. Flag(info.isKnown) .. "; hasAura=" .. Flag(info.hasAura)
+        .. "; selfAura=" .. Flag(info.selfAura) .. "; sealPlaceholder=" .. (sealPlaceholder and "yes" or "no")
+    return table.concat(ids, ","), count, usable, coversKnown, sealOnlyLinks, flags
 end
 
 local function InitializeEvents()
@@ -204,12 +217,12 @@ function ZP:RefreshCooldownSealReminder()
                                 local got, id = pcall(item.GetCooldownID, item)
                                 if got and Number(id) then
                                     local read, info = pcall(api, id)
-                                    local ids, count, usable, coversKnown, sealOnlyLinks = nil, 0, false, false, false
-                                    if read then ids, count, usable, coversKnown, sealOnlyLinks = Metadata(info, required) end
+                                    local ids, count, usable, coversKnown, sealOnlyLinks, flags = nil, 0, false, false, false, ""
+                                    if read then ids, count, usable, coversKnown, sealOnlyLinks, flags = Metadata(info, required) end
                                     items[#items + 1] = name .. ": cooldown=" .. id .. "; spells=" .. (ids or "unavailable")
                                         .. "; sealFamilies=" .. count .. "; trackable=" .. (usable and "yes" or "no")
                                         .. "; coversKnown=" .. (coversKnown and "yes" or "no")
-                                        .. "; sealOnlyLinks=" .. (sealOnlyLinks and "yes" or "no")
+                                        .. "; sealOnlyLinks=" .. (sealOnlyLinks and "yes" or "no") .. (flags or "")
                                     if index <= 2 and enabled then
                                         if not selected and usable and coversKnown and count >= 2 and ViewerEnabled() and Visible(viewer)
                                             and type(item.IsActive) == "function" then
