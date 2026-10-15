@@ -548,14 +548,15 @@ local function BuildPages()
     end
     local page = pages.interface
     Label(page, L.messagesGroup, 0, 0, 370, "GameFontNormal")
-    Checkbox(page, "hideErrors", L.compactErrors, 0, -23, 355, nil, L.errorsHelp)
-    Label(page, L.cameraGroup, 0, -54, 370, "GameFontNormal")
-    Checkbox(page, "maxZoom", L.compactCamera, 0, -77, 355, nil, L.cameraHelp)
-    Checkbox(page, "zoomOnLogin", L.compactZoom, 23, -104, 332, "maxZoom", L.zoom)
-    Label(page, L.itemsGroup, 0, -129, 370, "GameFontNormal")
-    Checkbox(page, "itemBindingIcons", L.itemBindingIcons, 0, -152, 355, nil, L.itemBindingIconsHelp)
-    Checkbox(page, "restedXP", L.restedXP, 0, -179, 355, nil, L.restedXPHelp)
-    Checkbox(page, "xpStats", L.xpStats, 0, -206, 355, nil, L.xpStatsHelp)
+    Checkbox(page, "hideErrors", L.compactErrors, 0, -18, 355, nil, L.errorsHelp)
+    Label(page, L.cameraGroup, 0, -45, 370, "GameFontNormal")
+    Checkbox(page, "maxZoom", L.compactCamera, 0, -62, 355, nil, L.cameraHelp)
+    Checkbox(page, "zoomOnLogin", L.compactZoom, 23, -86, 332, "maxZoom", L.zoom)
+    Label(page, L.itemsGroup, 0, -112, 370, "GameFontNormal")
+    Checkbox(page, "itemBindingIcons", L.itemBindingIcons, 0, -130, 355, nil, L.itemBindingIconsHelp)
+    Checkbox(page, "itemTooltipIcons", L.itemTooltipIcons, 0, -154, 355, nil, L.itemTooltipIconsHelp)
+    Checkbox(page, "restedXP", L.restedXP, 0, -178, 355, nil, L.restedXPHelp)
+    Checkbox(page, "xpStats", L.xpStats, 0, -202, 355, nil, L.xpStatsHelp)
 
     page = pages.automation
     Label(page, L.trackingGroup, 0, 0, 370, "GameFontNormal")

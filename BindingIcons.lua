@@ -1,6 +1,9 @@
 local addonName, ZP = ...
 local bagButtons = setmetatable({}, {__mode = "k"})
 local rollFrames = setmetatable({}, {__mode = "k"})
+local lootButtons = setmetatable({}, {__mode = "k"})
+local lootScrollBoxes = setmetatable({}, {__mode = "k"})
+local lootOwners = setmetatable({}, {__mode = "k"})
 local windowButtons = setmetatable({}, {__mode = "k"})
 local containers = setmetatable({}, {__mode = "k"})
 local hooks = setmetatable({}, {__mode = "k"})
@@ -10,7 +13,7 @@ local betterBags = {}
 local betterBagItems = setmetatable({}, {__mode = "k"})
 local betterBagOwners = setmetatable({}, {__mode = "k"})
 local events, queued, refreshing
-local QueueRefresh
+local QueueRefresh, RegisterRoll
 local texturePaths = {
     closed = "Interface\\AddOns\\" .. addonName .. "\\Textures\\BindingChainClosed.tga",
     open = "Interface\\AddOns\\" .. addonName .. "\\Textures\\BindingChainOpen.tga",
@@ -235,6 +238,25 @@ local function BagIcon(button)
         or (GetItemButtonIconTexture and GetItemButtonIconTexture(button))
 end
 
+local function LootState(row)
+    if not GetLootSlotLink or not GetLootSlotType then return end
+    -- Modern rows are pooled and their button ID is not the loot slot.
+    local slot
+    if type(row.GetSlotIndex) == "function" then
+        local ok, value = pcall(row.GetSlotIndex, row)
+        if ok then slot = value end
+    else
+        slot = row.slot -- Original paged LootButton frames store the actual slot here.
+    end
+    if not Number(slot) or slot < 1 then return end
+    local itemType = Enum and Enum.LootSlotType and Enum.LootSlotType.Item or LOOT_SLOT_ITEM
+    if not Number(itemType) then return end
+    local typeOK, slotType = pcall(GetLootSlotType, slot)
+    if not typeOK or not Number(slotType) or slotType ~= itemType then return end
+    local linkOK, link = pcall(GetLootSlotLink, slot)
+    if linkOK then return LinkState(link, nil, true) end
+end
+
 local function BetterBagsData(item)
     if not Readable(item) or type(item) ~= "table" or not Readable(item.isFreeSlot)
         or item.isFreeSlot or not Readable(item.staticData) or item.staticData or not item.GetItemData then return end
@@ -325,6 +347,16 @@ local function RefreshRoll(frame, record)
     SetIcon(record, state, parent, icon)
 end
 
+local function RefreshLoot(button, record)
+    local icon = BagIcon(button)
+    local state
+    if ZP.db and ZP.db.itemBindingIcons and Shown(LootFrame) and Shown(record.row)
+        and Shown(button) and icon and (not icon.IsShown or Shown(icon)) then
+        state = LootState(record.row)
+    end
+    SetIcon(record, state, button, icon)
+end
+
 local function HookMethod(object, method, callback)
     if not object or type(object[method]) ~= "function" or not hooksecurefunc then return end
     local methods = hooks[object]
@@ -332,6 +364,54 @@ local function HookMethod(object, method, callback)
     if not methods[method] then
         local ok = pcall(hooksecurefunc, object, method, callback)
         if ok then methods[method] = true end
+    end
+end
+
+local function RegisterLoot(row)
+    if not Usable(row) then return end
+    local button = row.Item or row
+    if not Usable(button) then return end
+    local record = lootButtons[button]
+    if not record then
+        record = {}; lootButtons[button] = record
+        button:HookScript("OnShow", function() RefreshLoot(button, record) end)
+        button:HookScript("OnHide", function() SetIcon(record) end)
+        if row ~= button then
+            row:HookScript("OnShow", function() RefreshLoot(button, record) end)
+            row:HookScript("OnHide", function() SetIcon(record) end)
+        end
+        HookMethod(row, "Init", function() RefreshLoot(button, record) end)
+    end
+    record.row = row
+    RefreshLoot(button, record)
+end
+
+local function DiscoverLoot()
+    HookMethod(LootFrameElementMixin, "Init", RegisterLoot)
+    local scrollBox = LootFrame and LootFrame.ScrollBox
+    if scrollBox then
+        if not lootScrollBoxes[scrollBox] and ScrollUtil and ScrollUtil.AddInitializedFrameCallback then
+            -- Register after initialization; the slot is read afresh on every reuse.
+            lootScrollBoxes[scrollBox] = pcall(ScrollUtil.AddInitializedFrameCallback, scrollBox,
+                function(_, row) RegisterLoot(row) end, ZP)
+        end
+        if type(scrollBox.EnumerateFrames) == "function" then
+            for _, row in scrollBox:EnumerateFrames() do RegisterLoot(row) end
+        end
+    end
+    local count = Number(LOOTFRAME_NUMBUTTONS) and LOOTFRAME_NUMBUTTONS or 4
+    for i = 1, count do RegisterLoot(_G["LootButton" .. i]) end
+    if Usable(LootFrame) and not lootOwners[LootFrame] then
+        lootOwners[LootFrame] = true
+        LootFrame:HookScript("OnHide", function()
+            for _, record in pairs(lootButtons) do SetIcon(record) end
+        end)
+    end
+    for name, callback in pairs({LootFrame_Update = DiscoverLoot, LootFrame_UpdateButton = DiscoverLoot,
+        GroupLootFrame_SetupItemDisplay = RegisterRoll, GroupLootFrame_OnShow = RegisterRoll}) do
+        if not globalHooks[name] and type(_G[name]) == "function" and hooksecurefunc then
+            globalHooks[name] = pcall(hooksecurefunc, name, callback)
+        end
     end
 end
 
@@ -450,7 +530,7 @@ local function DiscoverBetterBags()
     for item in pairs(itemFrames.activeItems or {}) do visit(item) end
 end
 
-local function RegisterRoll(frame)
+RegisterRoll = function(frame)
     if not Usable(frame) then return end
     local record = rollFrames[frame]
     if not record then
@@ -528,10 +608,7 @@ local function Discover()
     HookMethod(ContainerFrameMixin, "UpdateItems", RefreshContainer)
     HookMethod(ContainerFrameMixin, "UpdateItemSlots", RefreshContainer)
     HookMethod(ContainerFrameItemButtonMixin, "Initialize", RegisterBag)
-    if not globalHooks.roll and type(GroupLootFrame_SetupItemDisplay) == "function" and hooksecurefunc then
-        local ok = pcall(hooksecurefunc, "GroupLootFrame_SetupItemDisplay", RegisterRoll)
-        if ok then globalHooks.roll = true end
-    end
+    DiscoverLoot()
     local count = Number(NUM_CONTAINER_FRAMES) and NUM_CONTAINER_FRAMES or 13
     for i = 1, count do RefreshContainer(_G["ContainerFrame" .. i]) end
     RefreshContainer(ContainerFrameCombinedBags)
@@ -548,6 +625,7 @@ function ZP:RefreshItemBindingIcons()
     Discover()
     DiscoverBetterBags()
     DiscoverWindows()
+    for button, record in pairs(lootButtons) do RefreshLoot(button, record) end
     for button, record in pairs(windowButtons) do RefreshWindow(button, record) end
     for button, record in pairs(bagButtons) do RefreshBag(button, record) end
     for frame, record in pairs(rollFrames) do RefreshRoll(frame, record) end
@@ -571,7 +649,8 @@ function ZP:InitializeItemBindingIcons()
     if events then return end
     events = CreateFrame("Frame")
     for _, event in ipairs({"BAG_UPDATE_DELAYED", "BAG_CONTAINER_UPDATE", "USE_COMBINED_BAGS_CHANGED",
-        "START_LOOT_ROLL", "CANCEL_LOOT_ROLL", "PLAYER_ENTERING_WORLD", "ADDON_LOADED",
+        "START_LOOT_ROLL", "CANCEL_LOOT_ROLL", "CANCEL_ALL_LOOT_ROLLS", "PLAYER_ENTERING_WORLD", "ADDON_LOADED",
+        "LOOT_OPENED", "LOOT_CLOSED", "LOOT_SLOT_CHANGED", "LOOT_SLOT_CLEARED",
         "ITEM_DATA_LOAD_RESULT", "GET_ITEM_INFO_RECEIVED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
         "PLAYERBANKSLOTS_CHANGED", "BANK_TABS_CHANGED", "MERCHANT_SHOW", "MERCHANT_CLOSED", "MERCHANT_UPDATE",
         "TRADE_SHOW", "TRADE_CLOSED", "TRADE_UPDATE", "TRADE_PLAYER_ITEM_CHANGED", "TRADE_TARGET_ITEM_CHANGED"}) do

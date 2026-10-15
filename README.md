@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.23.0**. Interface version: **16001**.
+Current version: **1.24.0**. Interface version: **16001**.
 
 ## Features
 
@@ -22,7 +22,8 @@ Current version: **1.23.0**. Interface version: **16001**.
 - Optionally color player names on native unit frames by class, retaining normal NPC name colors.
 - Optionally show a five-second mana spark on the native player mana bar after a mana-cost cast.
 - Optionally show actual spell-target names below native player, target and focus cast bars.
-- Optionally show green open / orange closed binding chains in native bags, BetterBags, bank, trade, vendor/buyback and loot-roll item icons.
+- Optionally show green open / orange closed binding chains in native bags, BetterBags, bank, trade, vendor/buyback, loot and roll windows.
+- Optionally show item icons beside native tooltips, including comparison tooltips.
 - Optionally show an eye above existing visible, accessible nameplates for units currently targeting you.
 - Optionally show a movable healer mana summary while in a party or raid, with individual percentages and a group average.
 - Optionally show a movable taxi-flight progress bar, with estimated destination and intermediate-stop countdowns.
@@ -30,6 +31,14 @@ Current version: **1.23.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.24.0
+
+- Add binding chains to the native loot list, including recycled rows and changed loot slots. Reinforce discovery and refresh for normal, gamepad and legacy roll frames. Preserve green open / orange closed chains; money, currencies and unknown binding data have no chain.
+- Add **Interface → Item icons beside tooltips**, off by default. Show a small icon outside each item tooltip, including equipped comparisons and item-link comparisons. Each icon uses its own tooltip's item. Placement avoids native text, comparison headers and screen edges; non-item, unavailable and private data clear the icon. The toggle applies immediately.
+- Include **ItemTooltipIcons.lua** when updating, then `/reload`. Existing settings are preserved.
+
+Focused mocked checks cover loot/roll lifecycle, item loading, tooltip reuse, comparison identity, placement and English/French configuration. Actual client visuals still need an in-game check. Native hooks were verified against the current Forever [loot rows](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/LootFrame.lua), [roll display](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/GroupLootFrame.lua) and [comparison manager](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_SharedXMLGame/Tooltip/TooltipComparisonManager.lua).
 
 ## Changes in 1.23.0
 

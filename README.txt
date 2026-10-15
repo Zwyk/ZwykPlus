@@ -1,4 +1,4 @@
-ZwykPlus 1.23.0 - WoW Forever
+ZwykPlus 1.24.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,17 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITIONS IN 1.24.0
+Binding chains now cover native loot rows and recycled roll frames.
+Green open / orange closed colors stay; money/currency/unknown data is skipped.
+
+Interface -> Item icons beside tooltips (off by default): show a small icon
+beside item and comparison tooltips. Each comparison uses its own item's icon.
+Placement avoids tooltip text, headers and screen edges. Applies immediately.
+
+Include ItemTooltipIcons.lua, then /reload and enable the new option.
+Existing settings stay saved. Mocked checks pass; verify visuals in game.
 
 CHANGES IN 1.23.0
 Spell tooltips show totals, DPS/HPS and efficiency, with compact periodic,

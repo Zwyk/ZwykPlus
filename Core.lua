@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.23.0"
+ZP.version = "1.24.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -25,6 +25,7 @@ local defaults = {
     manaSpark = false,
     castTargetNames = false,
     itemBindingIcons = false,
+    itemTooltipIcons = false,
     restedXP = true,
     xpStats = true,
     nameplateTargetEyes = false,
@@ -117,7 +118,7 @@ function ZP:InitializeDB()
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
     ZwykPlusDB.manaSparkRegenTicks = nil
-    ZwykPlusDB.version = 24
+    ZwykPlusDB.version = 25
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -305,6 +306,8 @@ function ZP:SetOption(key, value)
         if self.RefreshCastTargets then self:RefreshCastTargets() end
     elseif key == "itemBindingIcons" then
         if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
+    elseif key == "itemTooltipIcons" then
+        if self.RefreshItemTooltipIcons then self:RefreshItemTooltipIcons() end
     elseif key == "nameplateTargetEyes" then
         if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
     elseif key == "healerMana" then
@@ -329,6 +332,7 @@ function ZP:ApplyAll()
     if self.RefreshManaSpark then self:RefreshManaSpark() end
     if self.RefreshCastTargets then self:RefreshCastTargets() end
     if self.RefreshItemBindingIcons then self:RefreshItemBindingIcons() end
+    if self.RefreshItemTooltipIcons then self:RefreshItemTooltipIcons() end
     if self.RefreshXPStats then self:RefreshXPStats() end
     if self.RefreshRestedXP then self:RefreshRestedXP() end
     if self.RefreshNameplateTargetEyes then self:RefreshNameplateTargetEyes() end
@@ -381,6 +385,7 @@ events:SetScript("OnEvent", function(self, event, name)
         if ZP.InitializeManaSpark then ZP:InitializeManaSpark() end
         if ZP.InitializeCastTargets then ZP:InitializeCastTargets() end
         if ZP.InitializeItemBindingIcons then ZP:InitializeItemBindingIcons() end
+        if ZP.InitializeItemTooltipIcons then ZP:InitializeItemTooltipIcons() end
         if ZP.InitializeRestedXP then ZP:InitializeRestedXP() end
         if ZP.InitializeXPStats then ZP:InitializeXPStats() end
         if ZP.InitializeNameplateTargetEyes then ZP:InitializeNameplateTargetEyes() end
