@@ -26,6 +26,7 @@ local pageNames = {
 
 local function SettingEnabled(dependency)
     if dependency == "spellReminders" then return ZP.db.buffReminder or ZP.db.debuffReminder end
+    if dependency == "buffReminderDuration" then return ZP.db.buffReminder and ZP.db.buffReminderDurationText end
     return not dependency or ZP.db[dependency]
 end
 
@@ -343,7 +344,10 @@ function ZP:ShowBuffReminderOptions()
             L.buffReminderPercentFormat, "spellReminders")
         Checkbox(panel, "buffReminderMissingSeal", L.buffReminderMissingSeal, 24, -425, 380,
             "buffReminder", L.buffReminderMissingSealHelp)
-        Label(panel, L.buffReminderSupported, 24, -454, 412)
+        Checkbox(panel, "buffReminderDurationText", L.buffReminderDurationText, 24, -454, 380,
+            "buffReminder", L.buffReminderDurationTextHelp)
+        Checkbox(panel, "buffReminderDurationSwipe", L.buffReminderDurationSwipe, 47, -481, 357,
+            "buffReminderDuration", L.buffReminderDurationSwipeHelp)
         Label(panel, L.buffReminderAfterLimit, 24, -526, 412)
         local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
         closeIcon:SetPoint("TOPRIGHT", -6, -6)

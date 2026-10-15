@@ -210,8 +210,11 @@ local function ConfigureNative(button, entry)
     entry.nativeReady, entry.nativePending = false, false
     if not entry.family or not NativeReady() then return end
     local style, red, green, blue, opacity = Appearance(false)
+    local showText = ZP.db and Readable(ZP.db.buffReminderDurationText) and ZP.db.buffReminderDurationText == true or false
+    local showSwipe = showText and Readable(ZP.db.buffReminderDurationSwipe) and ZP.db.buffReminderDurationSwipe == true or false
     if entry.nativeFamily == entry.family and entry.nativeThreshold == threshold
-        and entry.nativeColorCurve == colorCurve and entry.nativeStyle == style and entry.container then
+        and entry.nativeColorCurve == colorCurve and entry.nativeStyle == style and entry.container
+        and entry.nativeShowText == showText and entry.nativeShowSwipe == showSwipe then
         if entry.containerEnabled then entry.nativeReady = true
         else
             entry.nativeReady = pcall(entry.container.SetEnabled, entry.container, true)
@@ -274,6 +277,14 @@ local function ConfigureNative(button, entry)
                 pcall(entry.nativeText.Show, entry.nativeText)
                 frame:SetDurationText(entry.nativeText, options)
             end
+            entry.nativeDurationReady, entry.nativeDurationError = false, nil
+            if ZP.ConfigureBuffDurationDisplay then
+                local timerOK, ready, reason = pcall(ZP.ConfigureBuffDurationDisplay, ZP, frame, button, showText, showSwipe, entry.family)
+                entry.nativeDurationReady = timerOK and Readable(ready) and ready == true
+                if not entry.nativeDurationReady then
+                    entry.nativeDurationError = ErrorText(timerOK and reason or ready)
+                end
+            elseif showText then entry.nativeDurationError = "native duration display unavailable" end
         end
         if not entry.nativeFrame then
             entry.nativeFrame = entry.container:AddAuraSlot("reminder", "HELPFUL", {
@@ -302,6 +313,7 @@ local function ConfigureNative(button, entry)
     if ok then
         entry.nativeFamily, entry.nativeThreshold, entry.nativeColorCurve = entry.family, threshold, colorCurve
         entry.nativeStyle = style
+        entry.nativeShowText, entry.nativeShowSwipe = showText, showSwipe
         entry.nativeReady, entry.containerEnabled = true, true
     else
         if entry.wrapper then pcall(entry.wrapper.Hide, entry.wrapper) end
@@ -579,10 +591,13 @@ local function Render()
         -- targets. This decision uses public configuration/action identity,
         -- never the target aura slot's private visibility.
         entry.buttonVisible = visible
+        if ZP.UpdateBuffDurationDisplay then
+            ZP:UpdateBuffDurationDisplay(button, entry.family, visible, preview or false)
+        end
         local targetOwned = not preview and ZP.IsDebuffReminderButtonOwned and ZP:IsDebuffReminderButtonOwned(button)
         if targetOwned then visible = false end
         local nativeMissing = ZP.UpdateCooldownSealReminderButton and ZP:UpdateCooldownSealReminderButton(button,
-            entry.family and sealFamilies[entry.family[1]] == true or false, visible, preview or false)
+            entry.family and sealFamilies[entry.family[1]] == true or false, visible, preview or false, entry.spellID)
         local after = not nativeMissing and Enabled() and AfterExpiry(entry.family, now)
         local nativeBefore = not preview and not after and entry.nativeReady and entry.nativeGlowReady
         local style, red, green, blue, opacity = Appearance(preview and previewAfter or not preview and after)
@@ -667,6 +682,7 @@ function ZP:RefreshBuffReminder(preservePreview)
     if not preservePreview then previewUntil = nil end
     elapsed, scanElapsed = 0, 0
     if not Enabled() then
+        if self.HideBuffDurationDisplays then self:HideBuffDurationDisplays() end
         Clear(true, "disabled")
         scanStatus = "disabled"
         for _, entry in pairs(buttons) do
@@ -728,6 +744,7 @@ function ZP:GetBuffReminderDiagnostics()
         expiryNearRemovalCount = expiryNearRemovalCount, expiryNearRemovalSpellID = expiryNearRemovalSpellID,
         expiryNearRemovalRemaining = expiryNearRemovalRemaining,
         combat = InCombat(), mappingPending = mappingPending, expiryFamilies = {}, expiryTrace = {},
+        durationTextButtons = 0, durationSwipeButtons = 0,
         expiryDiscardCounts = {}}
     for _, entry in pairs(buttons) do
         if entry.family then
@@ -735,6 +752,11 @@ function ZP:GetBuffReminderDiagnostics()
             if entry.nativeReady then result.engineConfigured = result.engineConfigured + 1 end
             if entry.nativePending then result.enginePending = result.enginePending + 1 end
             if entry.nativeFailed then result.engineFailed = result.engineFailed + 1 end
+            if entry.nativeDurationReady then
+                if entry.nativeShowText then result.durationTextButtons = result.durationTextButtons + 1 end
+                if entry.nativeShowSwipe then result.durationSwipeButtons = result.durationSwipeButtons + 1 end
+            end
+            result.durationLastError = entry.nativeDurationError or result.durationLastError
             if entry.nativeReady then
                 if entry.nativeGlowReady then result.nativeGlows = result.nativeGlows + 1
                 else

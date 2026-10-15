@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.25.1**. Interface version: **16001**.
+Current version: **1.26.0**. Interface version: **16001**.
 
 ## Features
 
@@ -31,6 +31,15 @@ Current version: **1.25.1**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.26.0
+
+- The CDM missing-seal glow now selects only the last successfully used non-Crusader seal, matching all ranks of that seal. Crusader, Judgement, failed casts and other spells preserve the selection. Save the choice per character across reloads. Cast a non-Crusader seal once after updating to select it. Unreadable cast IDs are ignored and counted in `/zp buffs`.
+- Cache a resolved aura caster's formatted name and class color for the exact public destination GUID, aura instance, spell and unchanged duration/expiration. Capture public applications when they arrive, so the name can survive its temporary source unit disappearing before the first hover. Removed/replaced applications, ambiguous refreshes and private updates discard the attribution. Click-to-target continues to use only the current live caster; cached names never target a recycled unit token.
+- Add **Show buff duration on spell buttons** and **Show buff duration swipe** to the existing buff reminder configuration, both off by default. Native aura bindings render the countdown and optional circular swipe, including in combat, with no addon calculation of hidden timing. The timer has its own native container so Crusader target-reminder ownership does not hide it or create competing glows. Permanent or missing buffs have no countdown. Configuration changes made in combat apply afterward.
+- Update and `/reload`, including **BuffDuration.lua**. Existing settings remain saved. The new character-specific `ZwykPlusLastSeal` stores only the last publicly observed seal spell ID; caster display snapshots remain session-only.
+
+Focused mocked checks cover last-seal selection/persistence, rank matching, public/private cast events, disappearing caster units, aura-instance lifecycle, target reuse, native timer bindings, combat deferral, independent visibility, and English/French configuration. Actual client rendering still needs an in-game check. Cast-event handling follows the native [successful cast event](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_APIDocumentationGenerated/UnitDocumentation.lua); duration displays use native [custom aura button bindings](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_AuraContainer/Blizzard_CustomAuraButton.lua).
 
 ## Changes in 1.25.1
 

@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.25.1"
+ZP.version = "1.26.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -39,6 +39,8 @@ local defaults = {
     buffReminderPercent = 20,
     buffReminderAfterPercent = 20,
     buffReminderMissingSeal = false,
+    buffReminderDurationText = false,
+    buffReminderDurationSwipe = false,
     buffReminderBeforeGlow = "pixel",
     buffReminderAfterGlow = "button",
     buffReminderColor = {r = 1, g = 0.78, b = 0.12},
@@ -119,7 +121,7 @@ function ZP:InitializeDB()
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
     ZwykPlusDB.manaSparkRegenTicks = nil
-    ZwykPlusDB.version = 26
+    ZwykPlusDB.version = 27
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -285,7 +287,7 @@ function ZP:SetOption(key, value)
         if self.RefreshBuffReminder then self:RefreshBuffReminder(true) end
         if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
     elseif key == "buffReminder" or key == "buffReminderPercent" or key == "buffReminderAfterPercent"
-        or key == "buffReminderMissingSeal" then
+        or key == "buffReminderMissingSeal" or key == "buffReminderDurationText" or key == "buffReminderDurationSwipe" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder() end
     elseif key == "debuffReminder" or key == "debuffReminderPercent" then
         if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
@@ -461,11 +463,16 @@ function ZP:ShowBuffReminderDiagnostics()
         lines[#lines + 1] = L.buffReminderDiagnosticTrace
         for _, line in ipairs(report.expiryTrace or {}) do lines[#lines + 1] = line end
         if not report.expiryTrace or #report.expiryTrace == 0 then lines[#lines + 1] = "--" end
+        lines[#lines + 1] = string.format(L.buffReminderDiagnosticDuration,
+            report.durationTextButtons or 0, report.durationSwipeButtons or 0, report.durationLastError or "--")
         if self.GetCooldownSealReminderDiagnostics then
             local native = self:GetCooldownSealReminderDiagnostics()
             lines[#lines + 1] = string.format(L.buffReminderDiagnosticCDM,
                 Flag(native.enabled), native.status or "--", native.sourceCooldownID or "--",
                 native.bindings or 0, native.forwards or 0, native.errors or 0, native.lastError or "--")
+            lines[#lines + 1] = string.format(L.buffReminderDiagnosticSealSelection,
+                native.selectedSpellID or "--", native.selectedFamily or "--",
+                native.selectedCasts or 0, native.unreadableCasts or 0)
             for _, line in ipairs(native.items or {}) do lines[#lines + 1] = line end
         end
         return lines

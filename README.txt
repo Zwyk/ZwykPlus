@@ -1,4 +1,4 @@
-ZwykPlus 1.25.1 - WoW Forever
+ZwykPlus 1.26.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,23 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+CHANGES IN 1.26.0
+Missing-seal glow: only the last successfully used non-Crusader seal glows.
+All ranks match; Crusader and Judgement keep the previous choice.
+Cast a non-Crusader seal once after updating. The choice is saved per character.
+
+Aura caster names/colors are cached for the same exact public aura application,
+so losing the source unit no longer loses its resolved name. Removal, refresh
+ambiguity or private data discards the match. Click targeting stays live-only.
+
+Buff reminders -> Configure: optional remaining duration text and buff swipe.
+The native aura engine renders both, including in combat; timers use a separate
+container so Crusader target reminders do not hide the countdown.
+Both options start off. Changes during combat apply afterward.
+
+Include BuffDuration.lua and /reload. Existing settings stay saved.
+Focused mocked tests pass; verify the displays in game.
 
 FIX IN 1.25.1
 The reported native Seals tracker (200340, placeholder 1323522) was found but

@@ -5,6 +5,7 @@ local _, ZP = ...
 local bindings, hooked = setmetatable({}, {__mode = "k"}), setmetatable({}, {__mode = "k"})
 local source, sourceID, sourceViewer, events, refreshing
 local status, items, forwards, errors, lastError = "disabled", {}, 0, 0, nil
+local selectedCasts, unreadableCasts = 0, 0
 local viewers = {"BuffIconCooldownViewer", "BuffBarCooldownViewer", "EssentialCooldownViewer", "UtilityCooldownViewer"}
 local sealFamilies = {
     {1311649, 1311656, 20163, 20419, 20421, 20422, 20423},
@@ -26,6 +27,12 @@ end
 local function Number(value)
     return Public(value) and type(value) == "number" and value == value
         and value > 0 and value < math.huge and value == math.floor(value)
+end
+
+local function Selection()
+    local id = ZwykPlusLastSeal
+    local family = Number(id) and sealFamilyByID[id]
+    if family and family ~= 7 then return id, family end
 end
 
 local function Flag(value)
@@ -79,6 +86,19 @@ end
 local function ClearSource()
     source, sourceID, sourceViewer = nil, nil, nil
     for _, binding in pairs(bindings) do Hide(binding) end
+end
+
+local function ObserveCast(unit, spellID)
+    if not Public(unit) or unit ~= "player" then return end
+    if not Number(spellID) then unreadableCasts = unreadableCasts + 1; return end
+    local family = sealFamilyByID[spellID]
+    -- Crusader is a temporary step before Judgement, not the seal to resume.
+    if not family or family == 7 then return end
+    ZwykPlusLastSeal = spellID
+    selectedCasts = selectedCasts + 1
+    for _, binding in pairs(bindings) do
+        if binding.family ~= family then Hide(binding) end
+    end
 end
 
 local function Forward(binding, active)
@@ -179,7 +199,13 @@ local function InitializeEvents()
         "COOLDOWN_VIEWER_TABLE_HOTFIXED", "CVAR_UPDATE", "PLAYER_REGEN_ENABLED"}) do
         pcall(events.RegisterEvent, events, event)
     end
-    events:SetScript("OnEvent", function() ZP:RefreshCooldownSealReminder() end)
+    if type(events.RegisterUnitEvent) == "function" then
+        pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
+    else pcall(events.RegisterEvent, events, "UNIT_SPELLCAST_SUCCEEDED") end
+    events:SetScript("OnEvent", function(_, event, unit, _castGUID, spellID)
+        if event == "UNIT_SPELLCAST_SUCCEEDED" then ObserveCast(unit, spellID)
+        else ZP:RefreshCooldownSealReminder() end
+    end)
 end
 
 function ZP:RefreshCooldownSealReminder()
@@ -242,18 +268,27 @@ function ZP:RefreshCooldownSealReminder()
     source, sourceID, sourceViewer = selected, selectedID, selectedViewer
     status = not enabled and "disabled" or type(api) ~= "function" and "CDM-unavailable"
         or not ViewerEnabled() and "CDM-disabled"
-        or source and "native-presence-forwarding" or "grouped-seal-source-unavailable"
+        or source and (Selection() and "native-presence-forwarding" or "waiting-for-seal-cast")
+        or "grouped-seal-source-unavailable"
     refreshing = false
 end
 
-function ZP:UpdateCooldownSealReminderButton(button, isSeal, visible, preview)
+function ZP:UpdateCooldownSealReminderButton(button, isSeal, visible, preview, spellID)
     if not Public(button) or (type(button) ~= "table" and type(button) ~= "userdata") then return false end
     local binding = bindings[button]
     local eligible = Enabled() and Object(button) and isSeal == true and visible == true and not preview and Ready()
     if not binding and not eligible then return false end
+    if not eligible then if binding then Hide(binding) end; return false end
+    local _, selectedFamily = Selection()
+    local family = Number(spellID) and sealFamilyByID[spellID]
+    if not selectedFamily or family ~= selectedFamily then
+        if binding then Hide(binding) end
+        -- Own every seal's missing state so the ordinary after-expiry path
+        -- cannot light a different seal while this mode is available.
+        return true
+    end
     if not binding then binding = {}; bindings[button] = binding end
-    binding.eligible = eligible
-    if not eligible then Hide(binding); return false end
+    binding.family, binding.eligible = family, true
     if not binding.glow then
         local ok, glow = pcall(self.CreateBuffGlow, self, button)
         if not ok or not Object(glow) then Error(glow); binding.eligible = false; return false end
@@ -277,7 +312,10 @@ function ZP:GetCooldownSealReminderDiagnostics()
     self:RefreshCooldownSealReminder()
     local count = 0
     for _, binding in pairs(bindings) do if binding.eligible then count = count + 1 end end
+    local selectedID, selectedFamily = Selection()
     local result = {enabled = Enabled(), status = status, sourceCooldownID = sourceID,
+        selectedSpellID = selectedID, selectedFamily = selectedFamily and sealFamilies[selectedFamily][1],
+        selectedCasts = selectedCasts, unreadableCasts = unreadableCasts,
         bindings = count, forwards = forwards, errors = errors, lastError = lastError, items = {}}
     for i, line in ipairs(items) do result.items[i] = line end
     return result
