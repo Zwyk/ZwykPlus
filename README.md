@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.24.1**. Interface version: **16001**.
+Current version: **1.25.0**. Interface version: **16001**.
 
 ## Features
 
@@ -31,6 +31,16 @@ Current version: **1.24.1**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.25.0
+
+- Add an experimental **Auras → Buff reminders → Configure → Glow while no seal is active (CDM)** option, off by default. A grouped player-seal entry in the native cooldown manager's **Tracked Buffs** or **Tracked Bars** drives the after-expiration glow directly on visible native seal buttons. The warning lasts until a seal is applied, including after Judgement or cancellation; the timed after-expiration percentage does not apply to this mode. Existing native near-expiration warnings remain available.
+- Forward the native buff item's opaque active boolean directly to the supported rendering setter, without reading its value or reconstructing private timing. Match public tracker metadata, require a known self-aura entry covering all learned seal families, and reject individual-seal or mixed-aura trackers. Ordinary Essential/Utility cooldown icons cannot establish buff presence and are included only in diagnostics.
+- Keep the native tracker enabled and its viewer visible for this first integration. The addon leaves the native layout and settings alone. Hide the added glow when the source is disabled, hidden, recycled, unknown or inaccessible; preserve animation phase on unchanged updates. Existing public timers remain the fallback when no supported CDM source is bound.
+- **/zp buffs** adds the CDM source status, public entry IDs and linked spells, visual-forward counts and errors. The supplied combat trace shows all tracked spell families becoming restricted at combat entry, so the old exact after-expiration timer cannot survive that transition. The new mode renders native presence directly instead. Actual metadata for the user's grouped seal entry and in-game combat rendering still need verification.
+- Include **CooldownSealReminder.lua** when updating and `/reload`. Enable the new option, keep the grouped Seals tracker visible, and test both an active seal and no seal during combat. If the glow is absent, copy `/zp buffs`, especially the CDM section. Existing saved settings are preserved.
+
+Focused mocked tests cover opaque boolean forwarding, static metadata, complete seal coverage, source reuse, visibility, live toggles, animation continuity and English/French configuration. The implementation follows the native [buff active-state calculation](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_CooldownViewer/CooldownViewer.lua) and the supported [boolean-to-alpha rendering API](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_APIDocumentationGenerated/SimpleRegionAPIDocumentation.lua).
 
 ## Changes in 1.24.1
 

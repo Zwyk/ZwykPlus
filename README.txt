@@ -1,4 +1,4 @@
-ZwykPlus 1.24.1 - WoW Forever
+ZwykPlus 1.25.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,23 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+ADDITION IN 1.25.0
+Experimental: Auras -> Buff reminders -> Configure ->
+Glow while no seal is active (CDM), off by default.
+
+Keep a grouped Seals entry in native Tracked Buffs/Tracked Bars visible.
+Its native active state drives a glow on seal buttons until a seal is applied,
+including in combat, after Judgement or cancellation. Uses the after-expiration
+style and color, without the percentage duration limit. Near-expiry warnings stay.
+Normal Essential/Utility cooldown icons do not establish buff presence.
+Unknown, mixed or incomplete tracker metadata is skipped.
+
+This forwards opaque state directly to rendering. It does not calculate with
+private aura timing or change the native tracker's layout/settings.
+/zp buffs adds CDM source IDs, linked spells, status and render errors.
+Actual grouped-entry metadata and combat visuals need an in-game check.
+Include CooldownSealReminder.lua and /reload. Existing settings stay saved.
 
 FIXES IN 1.24.1
 Keep valid public buff timers through transient unreadable action-bar mappings

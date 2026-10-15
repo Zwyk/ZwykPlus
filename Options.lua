@@ -341,6 +341,8 @@ function ZP:ShowBuffReminderOptions()
         SettingSlider(panel, "buffReminderGlowTransparency", L.buffReminderGlowTransparency, -393, 0, 100, 1,
             L.buffReminderGlowTransparencyHelp, L.portraitBackgroundOpaque, L.portraitBackgroundTransparent,
             L.buffReminderPercentFormat, "spellReminders")
+        Checkbox(panel, "buffReminderMissingSeal", L.buffReminderMissingSeal, 24, -425, 380,
+            "buffReminder", L.buffReminderMissingSealHelp)
         Label(panel, L.buffReminderSupported, 24, -454, 412)
         Label(panel, L.buffReminderAfterLimit, 24, -526, 412)
         local closeIcon = CreateFrame("Button", nil, panel, "UIPanelCloseButton")

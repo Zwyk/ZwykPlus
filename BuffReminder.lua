@@ -45,6 +45,8 @@ local families = {
     DRUID = {{1126, 5232, 6756, 5234, 8907, 9884, 9885, 21849, 21850}}, -- Mark
 }
 local spellFamilies = {}
+local sealFamilies = {[1311649] = true, [20154] = true, [20375] = true, [20164] = true,
+    [20165] = true, [20166] = true, [21082] = true}
 local prefixes = {"ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton",
     "MultiBarRightButton", "MultiBarLeftButton", "MultiBar5Button", "MultiBar6Button", "MultiBar7Button"}
 
@@ -579,7 +581,9 @@ local function Render()
         entry.buttonVisible = visible
         local targetOwned = not preview and ZP.IsDebuffReminderButtonOwned and ZP:IsDebuffReminderButtonOwned(button)
         if targetOwned then visible = false end
-        local after = Enabled() and AfterExpiry(entry.family, now)
+        local nativeMissing = ZP.UpdateCooldownSealReminderButton and ZP:UpdateCooldownSealReminderButton(button,
+            entry.family and sealFamilies[entry.family[1]] == true or false, visible, preview or false)
+        local after = not nativeMissing and Enabled() and AfterExpiry(entry.family, now)
         local nativeBefore = not preview and not after and entry.nativeReady and entry.nativeGlowReady
         local style, red, green, blue, opacity = Appearance(preview and previewAfter or not preview and after)
         local appearanceOK, applied = pcall(entry.texture.SetReminderAppearance, entry.texture, style, red, green, blue, opacity)
@@ -615,7 +619,7 @@ local function Render()
         entry.glowReady = appearanceOK and shownOK and (not after or ok)
         local renderState = entry.pendingFamily and "mapping-pending" or not entry.family and "unmapped"
             or entry.glowError and "render-error" or targetOwned and "target-reminder-owned" or not visible and "button-hidden"
-            or after and "after-requested" or record and "aura-present" or "idle"
+            or nativeMissing and "CDM-state-forwarding" or after and "after-requested" or record and "aura-present" or "idle"
         if entry.lastRenderState ~= renderState then
             Trace("render", entry.spellID or entry.pendingFamily and entry.pendingFamily[1],
                 renderState .. (entry.glowError and "; " .. entry.glowError or ""))
@@ -649,6 +653,7 @@ local function StartTicker()
         if not Enabled() and not previewUntil then Clear(true, "disabled"); events:SetScript("OnUpdate", nil); return end
         if Enabled() and scanElapsed >= 1 then
             scanElapsed = 0
+            if ZP.RefreshCooldownSealReminder then ZP:RefreshCooldownSealReminder() end
             if mappingPending or (buildPending and not InCombat()) then BuildButtons() end
             ScanAuras()
         end
@@ -658,6 +663,7 @@ end
 
 function ZP:RefreshBuffReminder(preservePreview)
     if not events then return end
+    if self.RefreshCooldownSealReminder then self:RefreshCooldownSealReminder() end
     if not preservePreview then previewUntil = nil end
     elapsed, scanElapsed = 0, 0
     if not Enabled() then

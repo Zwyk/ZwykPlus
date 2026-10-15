@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.24.1"
+ZP.version = "1.25.0"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -38,6 +38,7 @@ local defaults = {
     buffReminder = false,
     buffReminderPercent = 20,
     buffReminderAfterPercent = 20,
+    buffReminderMissingSeal = false,
     buffReminderBeforeGlow = "pixel",
     buffReminderAfterGlow = "button",
     buffReminderColor = {r = 1, g = 0.78, b = 0.12},
@@ -118,7 +119,7 @@ function ZP:InitializeDB()
     ZwykPlusDB.nameplateTargetEyesHidden = nil
     ZwykPlusDB.buffReminderSeconds = nil
     ZwykPlusDB.manaSparkRegenTicks = nil
-    ZwykPlusDB.version = 25
+    ZwykPlusDB.version = 26
     self.db = ZwykPlusDB
     if self.portraits3DActive == nil then self.portraits3DActive = self.db.portraits3D end
 end
@@ -283,7 +284,8 @@ function ZP:SetOption(key, value)
         or key == "buffReminderGlowTransparency" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder(true) end
         if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
-    elseif key == "buffReminder" or key == "buffReminderPercent" or key == "buffReminderAfterPercent" then
+    elseif key == "buffReminder" or key == "buffReminderPercent" or key == "buffReminderAfterPercent"
+        or key == "buffReminderMissingSeal" then
         if self.RefreshBuffReminder then self:RefreshBuffReminder() end
     elseif key == "debuffReminder" or key == "debuffReminderPercent" then
         if self.RefreshDebuffReminder then self:RefreshDebuffReminder() end
@@ -459,6 +461,13 @@ function ZP:ShowBuffReminderDiagnostics()
         lines[#lines + 1] = L.buffReminderDiagnosticTrace
         for _, line in ipairs(report.expiryTrace or {}) do lines[#lines + 1] = line end
         if not report.expiryTrace or #report.expiryTrace == 0 then lines[#lines + 1] = "--" end
+        if self.GetCooldownSealReminderDiagnostics then
+            local native = self:GetCooldownSealReminderDiagnostics()
+            lines[#lines + 1] = string.format(L.buffReminderDiagnosticCDM,
+                Flag(native.enabled), native.status or "--", native.sourceCooldownID or "--",
+                native.bindings or 0, native.forwards or 0, native.errors or 0, native.lastError or "--")
+            for _, line in ipairs(native.items or {}) do lines[#lines + 1] = line end
+        end
         return lines
     end
     if self.ShowDiagnostics then
