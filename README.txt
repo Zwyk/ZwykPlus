@@ -1,4 +1,4 @@
-ZwykPlus 1.24.0 - WoW Forever
+ZwykPlus 1.24.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,17 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+FIXES IN 1.24.1
+Keep valid public buff timers through transient unreadable action-bar mappings
+in combat. Suppress unresolved buttons and retry; confirmed changes clear them.
+Private aura timing still prevents an exact post-expiration timer.
+
+/zp buffs opens a copyable report with per-family blockers and 100 recent
+state transitions. Before testing: /zp buffs clear. Let a buff naturally expire
+in combat, then /zp buffs immediately and copy the report.
+/zp test buffs after checks the glow effect separately.
+Existing settings stay saved. Mocked regressions pass; verify in game.
 
 ADDITIONS IN 1.24.0
 Binding chains now cover native loot rows and recycled roll frames.

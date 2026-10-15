@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.24.0**. Interface version: **16001**.
+Current version: **1.24.1**. Interface version: **16001**.
 
 ## Features
 
@@ -31,6 +31,14 @@ Current version: **1.24.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.24.1
+
+- Fix a transient unreadable action-bar spell erasing a valid buff reminder timer for the rest of combat. Keep validating its aura family, suppress the unresolved button and retry its mapping each second. A confirmed empty, macro or changed spell still clears the old mapping; private aura timing still discards the timer.
+- **/zp buffs** now opens a copyable, refreshable report. It lists each tracked spell family, the exact rank blocking public access, timer/removal decisions, button visibility and glow request errors. A bounded 100-entry trace records state changes without reading private native rendering state. **/zp buffs clear** resets the trace.
+- To diagnose: update and `/reload`, set a nonzero after-expiration percentage, then run `/zp buffs clear` before testing. Let a supported buff naturally expire in combat without judging, cancelling or replacing it. Open `/zp buffs` immediately afterward and copy the report. `/zp test buffs after` separately checks the selected after-expiration effect.
+
+Focused mocked tests cover transient combat mapping loss, recovery before/after expiry, changed actions, private data, early removal, animation continuity, render failures, trace bounds and English/French diagnostics. These checks do not establish that the real client exposes the tested buff's timing. Native [aura visibility and animation bindings](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_AuraContainer/Blizzard_CustomAuraButton.lua) stop when the aura disappears; [per-spell secrecy policy](https://github.com/Gethe/wow-ui-source/blob/735496de78ebd30ce816a0637982c556987f258c/Interface/AddOns/Blizzard_APIDocumentationGenerated/SecretPredicateAPIDocumentation.lua) must permit public queries for an exact post-expiration timer. Existing settings are preserved.
 
 ## Changes in 1.24.0
 

@@ -1,6 +1,6 @@
 local addonName, ZP = ...
 local L = ZP.L
-ZP.version = "1.24.0"
+ZP.version = "1.24.1"
 local events = CreateFrame("Frame")
 local defaults = {
     hideErrors = true,
@@ -410,34 +410,63 @@ end)
 SLASH_ZWYKPLUS1 = "/zwykplus"
 SLASH_ZWYKPLUS2 = "/zp"
 function ZP:ShowBuffReminderDiagnostics()
-    local report = self.GetBuffReminderDiagnostics and self:GetBuffReminderDiagnostics()
-    print("|cffffcc66ZwykPlus " .. self.version .. " - " .. L.buffReminderDiagnostics .. "|r")
-    if not report then print(L.buffReminderUnavailable); return end
-    print(string.format(L.buffReminderDiagnosticSettings, report.enabled and L.yes or L.no,
-        report.percent or 20, report.afterPercent or 20))
-    print(string.format(L.buffReminderDiagnosticButtons, report.mappedButtons or 0))
-    print(string.format(L.buffReminderDiagnosticAuras, report.publicAuras or 0, report.timingAvailable or 0,
-        report.publicScanStatus or "?"))
-    print(string.format(L.buffReminderDiagnosticEngine, report.engineConfigured or 0, report.enginePending or 0,
-        report.engineFailed or 0))
-    print(string.format(L.buffReminderDiagnosticNativeGlow, report.nativeGlows or 0, report.nativeGlowFallbacks or 0,
-        report.nativeGlowLastError or "--"))
-    print(string.format(L.buffReminderDiagnosticExpiry, report.publicTimedAuras or 0, report.postExpiryTimers or 0,
-        report.postExpiryActive or 0, report.historyValidated and L.yes or L.no))
-    print(string.format(L.buffReminderDiagnosticScope, report.expiryScanMethod or "--",
-        report.expiryAllowedFamilies or 0, report.expiryBlockedFamilies or 0, report.unreadableTimedAuras or 0))
-    print(string.format(L.buffReminderDiagnosticDiscard, report.expiryLastReason or "--",
-        report.expiryLastSpellID and tostring(report.expiryLastSpellID) or "--",
-        report.expiryLastRemaining and string.format("%.2f", report.expiryLastRemaining) or "--"))
-    print(string.format(L.buffReminderDiagnosticRemoval, report.expiryLastRemovalRemaining
-        and string.format("%.3f", report.expiryLastRemovalRemaining) or "--", report.expiryRemovalTolerance or 0.2))
-    print(string.format(L.buffReminderDiagnosticNearExpiry, report.expiryNearRemovalCount or 0,
-        report.expiryNearRemovalSpellID and tostring(report.expiryNearRemovalSpellID) or "--",
-        report.expiryNearRemovalRemaining and string.format("%.3f", report.expiryNearRemovalRemaining) or "--"))
-    local counts = {}
-    for reason, count in pairs(report.expiryDiscardCounts or {}) do counts[#counts + 1] = reason .. "=" .. count end
-    table.sort(counts)
-    print(string.format(L.buffReminderDiagnosticCounts, #counts > 0 and table.concat(counts, "; ") or "--"))
+    local function Lines()
+        local report = self.GetBuffReminderDiagnostics and self:GetBuffReminderDiagnostics()
+        if not report then return {L.buffReminderUnavailable} end
+        local counts = {}
+        for reason, count in pairs(report.expiryDiscardCounts or {}) do counts[#counts + 1] = reason .. "=" .. count end
+        table.sort(counts)
+        local lines = {
+            string.format(L.buffReminderDiagnosticSettings, report.enabled and L.yes or L.no,
+                report.percent or 20, report.afterPercent or 20),
+            string.format(L.buffReminderDiagnosticButtons, report.mappedButtons or 0),
+            string.format(L.buffReminderDiagnosticAuras, report.publicAuras or 0, report.timingAvailable or 0,
+                report.publicScanStatus or "?"),
+            string.format(L.buffReminderDiagnosticEngine, report.engineConfigured or 0, report.enginePending or 0,
+                report.engineFailed or 0),
+            string.format(L.buffReminderDiagnosticNativeGlow, report.nativeGlows or 0, report.nativeGlowFallbacks or 0,
+                report.nativeGlowLastError or "--"),
+            string.format(L.buffReminderDiagnosticExpiry, report.publicTimedAuras or 0, report.postExpiryTimers or 0,
+                report.postExpiryActive or 0, report.historyValidated and L.yes or L.no),
+            string.format(L.buffReminderDiagnosticScope, report.expiryScanMethod or "--",
+                report.expiryAllowedFamilies or 0, report.expiryBlockedFamilies or 0, report.unreadableTimedAuras or 0),
+            string.format(L.buffReminderDiagnosticDiscard, report.expiryLastReason or "--",
+                report.expiryLastSpellID and tostring(report.expiryLastSpellID) or "--",
+                report.expiryLastRemaining and string.format("%.2f", report.expiryLastRemaining) or "--"),
+            string.format(L.buffReminderDiagnosticRemoval, report.expiryLastRemovalRemaining
+                and string.format("%.3f", report.expiryLastRemovalRemaining) or "--", report.expiryRemovalTolerance or 0.2),
+            string.format(L.buffReminderDiagnosticNearExpiry, report.expiryNearRemovalCount or 0,
+                report.expiryNearRemovalSpellID and tostring(report.expiryNearRemovalSpellID) or "--",
+                report.expiryNearRemovalRemaining and string.format("%.3f", report.expiryNearRemovalRemaining) or "--"),
+            string.format(L.buffReminderDiagnosticCounts, #counts > 0 and table.concat(counts, "; ") or "--"),
+            string.format(L.buffReminderDiagnosticCombat, report.combat and L.yes or L.no),
+            L.buffReminderDiagnosticPrivate,
+            L.buffReminderDiagnosticFamilies,
+        }
+        local function Flag(value)
+            if value == nil then return "?" end
+            return value and L.yes or L.no
+        end
+        local function Seconds(value)
+            return type(value) == "number" and string.format("%.2f", value) or "--"
+        end
+        for _, family in ipairs(report.expiryFamilies or {}) do
+            lines[#lines + 1] = string.format(L.buffReminderDiagnosticFamily,
+                family.spellID or "--", family.state or "--", family.reason or "--",
+                Seconds(family.remaining), Seconds(family.total), Flag(family.public), Flag(family.active),
+                Flag(family.nativeReady), Flag(family.buttonVisible), Flag(family.glowReady), family.glowError or "--")
+        end
+        lines[#lines + 1] = L.buffReminderDiagnosticTrace
+        for _, line in ipairs(report.expiryTrace or {}) do lines[#lines + 1] = line end
+        if not report.expiryTrace or #report.expiryTrace == 0 then lines[#lines + 1] = "--" end
+        return lines
+    end
+    if self.ShowDiagnostics then
+        self:ShowDiagnostics(L.buffReminderDiagnostics, L.buffReminderDiagnosticsHelp, Lines)
+    else
+        print("|cffffcc66ZwykPlus " .. self.version .. " - " .. L.buffReminderDiagnostics .. "|r")
+        for _, line in ipairs(Lines()) do print(line) end
+    end
 end
 
 function ZP:ShowDebuffReminderDiagnostics()
@@ -494,6 +523,9 @@ SlashCmdList.ZWYKPLUS = function(message)
         if ZP.ShowHealerManaDiagnostics then ZP:ShowHealerManaDiagnostics() end
     elseif command == "flight" then
         if ZP.ShowFlightTimerPreview then ZP:ShowFlightTimerPreview() end
+    elseif command == "buffs clear" or command == "debug buffs clear" then
+        if ZP.ClearBuffReminderTrace then ZP:ClearBuffReminderTrace() end
+        ZP:ShowBuffReminderDiagnostics()
     elseif command == "buffs" or command == "debug buffs" then
         ZP:ShowBuffReminderDiagnostics()
     elseif command == "debuffs" or command == "debug debuffs" then

@@ -9,6 +9,7 @@ local expiryNearRemovalCount, expiryRemovalTolerance = 0, 0.2
 local elapsed, scanElapsed = 0, 0
 local scanStatus = "disabled"
 local expiryScanMethod, expiryAllowedFamilies, expiryBlockedFamilies = "indexed", 0, 0
+local mappingPending, familyStates, familyDiscardReasons, trace = false, {}, {}, {}
 
 -- Classic rank families, including their group versions. Only direct spell
 -- buttons on Blizzard bars are supported; macros are deliberately not guessed.
@@ -57,6 +58,10 @@ local function Number(value)
         and value ~= math.huge and value ~= -math.huge
 end
 
+local function ErrorText(value)
+    return Readable(value) and type(value) == "string" and value:sub(1, 180) or "render request failed"
+end
+
 local function Enabled()
     local value = ZP.db and ZP.db.buffReminder
     return Readable(value) and value == true
@@ -71,6 +76,21 @@ local function InCombat()
     if not InCombatLockdown then return false end
     local ok, value = pcall(InCombatLockdown)
     return not ok or not Readable(value) or value ~= false
+end
+
+local function Trace(kind, spellID, detail)
+    local combat = InCombat()
+    trace[#trace + 1] = string.format("%.1f %s %s spell=%s %s", GetTime(),
+        combat and "combat" or "peace", kind, spellID and tostring(spellID) or "--", detail or "")
+    if #trace > 100 then table.remove(trace, 1) end
+end
+
+local function FamilyState(family, state, reason, spellID)
+    local previous = familyStates[family]
+    if not previous or previous.state ~= state or previous.reason ~= reason then
+        Trace(state, spellID or family[1], reason)
+    end
+    familyStates[family] = {state = state, reason = reason, spellID = spellID}
 end
 
 local function PublicButton(button)
@@ -96,6 +116,8 @@ local function DropHistory(family, reason, removalTime)
     expiryLastReason, expiryLastSpellID = reason, history.spellID
     expiryLastRemaining = history.expires - GetTime()
     expiryLastRemovalRemaining = removalTime and history.expires - removalTime or nil
+    familyDiscardReasons[family] = reason
+    Trace("discard", history.spellID, reason .. string.format("; remaining=%.3f", expiryLastRemaining))
 end
 
 local function DropAllHistory(reason)
@@ -299,16 +321,21 @@ local function BuildButtons()
     for _, family in ipairs(families[class] or {}) do
         for _, id in ipairs(family) do spellFamilies[id] = family end
     end
-    for _, entry in pairs(buttons) do entry.family = nil end
+    mappingPending = false
+    for _, entry in pairs(buttons) do
+        entry.pendingFamily = entry.family or entry.pendingFamily
+        entry.family, entry.spellID = nil, nil
+    end
     for _, prefix in ipairs(prefixes) do
         for i = 1, 12 do
             local button = _G[prefix .. i]
             if PublicButton(button) then
                 local entry = buttons[button]
-                local slot, family = ActionSlot(button), nil
+                local slot, family, spellID, actionReadable = ActionSlot(button), nil, nil, false
                 if Number(slot) and GetActionInfo then
                     local ok, kind, id = pcall(GetActionInfo, slot)
-                    if ok and Readable(kind) and kind == "spell" and Number(id) then family = spellFamilies[id] end
+                    actionReadable = ok and Readable(kind) and (kind ~= "spell" or Number(id))
+                    if actionReadable and kind == "spell" then family, spellID = spellFamilies[id], id end
                 end
                 if not entry and family and not InCombat() then
                     local ok, texture = pcall(ZP.CreateBuffGlow, ZP, button)
@@ -318,7 +345,9 @@ local function BuildButtons()
                     end
                 end
                 if entry then
-                    entry.family = family
+                    entry.family, entry.spellID = family, spellID
+                    if actionReadable then entry.pendingFamily = nil end
+                    if entry.pendingFamily then mappingPending = true end
                     if Enabled() then ConfigureNative(button, entry)
                     else entry.nativeReady = false end
                 end
@@ -328,9 +357,17 @@ local function BuildButtons()
     mappedFamilies = {}
     for _, entry in pairs(buttons) do
         if entry.family then mappedFamilies[entry.family] = true end
+        -- An unreadable action suppresses its button, but is not proof that
+        -- the previously mapped spell disappeared. Keep observing its family.
+        if entry.pendingFamily then
+            mappedFamilies[entry.pendingFamily], mappingPending = true, true
+        end
     end
     for family in pairs(expiryHistory) do
         if not mappedFamilies[family] then DropHistory(family, "unmapped-button") end
+    end
+    for family in pairs(familyStates) do
+        if not mappedFamilies[family] then familyStates[family] = nil end
     end
 end
 
@@ -350,6 +387,10 @@ local function ReadAura(aura, id, family, now, after)
         record.expires, record.total = expires, total
         local previous = expiryHistory[family]
         if mappedFamilies[family] and after > 0 and expires > now then
+            if not previous or previous.expires ~= expires or previous.total ~= total then
+                familyDiscardReasons[family] = nil
+                Trace("armed", id, string.format("remaining=%.2f total=%.2f", expires - now, total))
+            end
             expiryHistory[family] = {expires = expires, total = total,
                 spellID = id, instanceID = Number(instance) and instance or nil}
         elseif not previous or previous.expires ~= expires or previous.total ~= total then
@@ -396,7 +437,7 @@ local function PublicFamilyQueries(family)
     for _, id in ipairs(family) do
         -- A concealed lookup can also return nil. Every rank needs explicit
         -- public policy before an empty result can establish family absence.
-        if not IsPublic(api.ShouldSpellAuraBeSecret, id) then return false end
+        if not IsPublic(api.ShouldSpellAuraBeSecret, id) then return false, id end
     end
     return true
 end
@@ -410,7 +451,8 @@ local function ScanSpellFamilies(api, getter, unitGetter)
     scanStatus = "ok"
     if after == 0 then DropAllHistory("after-disabled") end
     for family in pairs(mappedFamilies) do
-        local allowed, record, duplicate = PublicFamilyQueries(family), nil, false
+        local allowed, blockedID = PublicFamilyQueries(family)
+        local record, duplicate = nil, false
         local reason = "restricted-family-policy"
         if allowed then
             for _, id in ipairs(family) do
@@ -418,10 +460,12 @@ local function ScanSpellFamilies(api, getter, unitGetter)
                 if unitGetter then ok, aura = pcall(getter, "player", id)
                 else ok, aura = pcall(getter, id) end
                 if not ok or not Readable(aura) then
+                    blockedID = id
                     allowed, reason = false, "restricted-family-result"
                     break
                 elseif aura ~= nil then
                     if type(aura) ~= "table" or not Number(aura.spellId) or aura.spellId ~= id then
+                        blockedID = id
                         allowed, reason = false, "restricted-family-identity"
                         break
                     end
@@ -431,12 +475,18 @@ local function ScanSpellFamilies(api, getter, unitGetter)
             end
         end
         if not allowed then
+            FamilyState(family, "restricted", reason .. "; blocked spell=" .. tostring(blockedID or family[1]))
             DropHistory(family, reason)
             expiryBlockedFamilies = expiryBlockedFamilies + 1
             scanStatus = "partial"
         elseif duplicate then
+            FamilyState(family, "duplicate", "duplicate-family")
             DropHistory(family, "duplicate-family")
         else
+            FamilyState(family, record and "present" or "missing",
+                record and (record.unreadableTiming and "missing-public-timing"
+                    or record.expires and "public-timing" or "permanent-or-zero-timing") or "public-absence",
+                record and record.spellID)
             expiryAllowedFamilies = expiryAllowedFamilies + 1
             records[family] = record
             seen[family] = record ~= nil
@@ -447,6 +497,7 @@ local function ScanSpellFamilies(api, getter, unitGetter)
 end
 
 local function ScanIndexedAuras()
+    familyStates = {}
     expiryScanMethod, expiryAllowedFamilies, expiryBlockedFamilies = "indexed", 0, 0
     records = {}
     historyValidated = false
@@ -525,16 +576,21 @@ local function Render()
         -- The target reminder owns Crusader buttons on eligible hostile
         -- targets. This decision uses public configuration/action identity,
         -- never the target aura slot's private visibility.
-        if not preview and ZP.IsDebuffReminderButtonOwned and ZP:IsDebuffReminderButtonOwned(button) then visible = false end
+        entry.buttonVisible = visible
+        local targetOwned = not preview and ZP.IsDebuffReminderButtonOwned and ZP:IsDebuffReminderButtonOwned(button)
+        if targetOwned then visible = false end
         local after = Enabled() and AfterExpiry(entry.family, now)
         local nativeBefore = not preview and not after and entry.nativeReady and entry.nativeGlowReady
         local style, red, green, blue, opacity = Appearance(preview and previewAfter or not preview and after)
         local appearanceOK, applied = pcall(entry.texture.SetReminderAppearance, entry.texture, style, red, green, blue, opacity)
-        appearanceOK = appearanceOK and applied ~= false
+        appearanceOK = appearanceOK and Readable(applied) and applied ~= false
+        entry.glowReady = appearanceOK
+        entry.glowError = not appearanceOK and ErrorText(applied) or nil
         -- Visibility is public configuration/button state, never curve alpha.
-        pcall(entry.texture.SetShown, entry.texture,
+        local shownOK, shownError = pcall(entry.texture.SetShown, entry.texture,
             appearanceOK and ((preview and entry.family) or (Enabled() and record and not nativeBefore) or after)
                 and public and visible or false)
+        if not shownOK then entry.glowError = ErrorText(shownError) end
         local ok = false
         if preview and entry.family and public then
             ok = pcall(entry.texture.SetAlpha, entry.texture, 1)
@@ -552,7 +608,19 @@ local function Render()
                     remaining > 0 and remaining / record.total <= threshold and 1 or 0)
             end
         end
-        if not ok then pcall(entry.texture.SetAlpha, entry.texture, 0) end
+        if not ok then
+            pcall(entry.texture.SetAlpha, entry.texture, 0)
+            if after then entry.glowError = entry.glowError or "after-expiry alpha request failed" end
+        end
+        entry.glowReady = appearanceOK and shownOK and (not after or ok)
+        local renderState = entry.pendingFamily and "mapping-pending" or not entry.family and "unmapped"
+            or entry.glowError and "render-error" or targetOwned and "target-reminder-owned" or not visible and "button-hidden"
+            or after and "after-requested" or record and "aura-present" or "idle"
+        if entry.lastRenderState ~= renderState then
+            Trace("render", entry.spellID or entry.pendingFamily and entry.pendingFamily[1],
+                renderState .. (entry.glowError and "; " .. entry.glowError or ""))
+            entry.lastRenderState = renderState
+        end
         if entry.wrapper then
             -- This visibility follows only public button/configuration state.
             -- The native engine owns all pre-expiry visibility when available,
@@ -581,7 +649,7 @@ local function StartTicker()
         if not Enabled() and not previewUntil then Clear(true, "disabled"); events:SetScript("OnUpdate", nil); return end
         if Enabled() and scanElapsed >= 1 then
             scanElapsed = 0
-            if buildPending and not InCombat() then BuildButtons() end
+            if mappingPending or (buildPending and not InCombat()) then BuildButtons() end
             ScanAuras()
         end
         Render()
@@ -653,6 +721,7 @@ function ZP:GetBuffReminderDiagnostics()
         expiryLastRemovalRemaining = expiryLastRemovalRemaining, expiryRemovalTolerance = expiryRemovalTolerance,
         expiryNearRemovalCount = expiryNearRemovalCount, expiryNearRemovalSpellID = expiryNearRemovalSpellID,
         expiryNearRemovalRemaining = expiryNearRemovalRemaining,
+        combat = InCombat(), mappingPending = mappingPending, expiryFamilies = {}, expiryTrace = {},
         expiryDiscardCounts = {}}
     for _, entry in pairs(buttons) do
         if entry.family then
@@ -681,7 +750,40 @@ function ZP:GetBuffReminderDiagnostics()
         if AfterExpiry(family, now) then result.postExpiryActive = result.postExpiryActive + 1 end
     end
     for reason, count in pairs(expiryDiscardCounts) do result.expiryDiscardCounts[reason] = count end
+    for family in pairs(mappedFamilies) do
+        local state, record, history = familyStates[family], records[family], expiryHistory[family]
+        local item = {spellID = record and record.spellID or history and history.spellID or family[1],
+            state = state and state.state or record and "present" or scanStatus,
+            reason = state and state.reason or scanStatus,
+            public = state and state.state ~= "restricted" and state.state ~= "duplicate"
+                or not state and historyValidated or false,
+            active = AfterExpiry(family, now), nativeReady = false, buttonVisible = false, glowReady = false}
+        if not history and familyDiscardReasons[family] then
+            item.reason = item.reason .. "; discarded=" .. familyDiscardReasons[family]
+        end
+        if history then item.remaining, item.total = history.expires - now, history.total end
+        for _, entry in pairs(buttons) do
+            if entry.family == family then
+                item.spellID = record and record.spellID or history and history.spellID or entry.spellID or item.spellID
+                item.nativeReady = item.nativeReady or entry.nativeReady == true
+                item.buttonVisible = item.buttonVisible or entry.buttonVisible == true
+                item.glowReady = item.glowReady or entry.glowReady == true
+                item.glowError = entry.glowError or item.glowError
+                item.reason = item.reason .. "; render=" .. (entry.lastRenderState or "--")
+            elseif entry.pendingFamily == family then
+                item.reason = item.reason .. "; action-mapping-pending"
+            end
+        end
+        result.expiryFamilies[#result.expiryFamilies + 1] = item
+    end
+    table.sort(result.expiryFamilies, function(a, b) return a.spellID < b.spellID end)
+    for i, line in ipairs(trace) do result.expiryTrace[i] = line end
     return result
+end
+
+function ZP:ClearBuffReminderTrace()
+    trace = {}
+    Trace("capture", nil, "cleared")
 end
 
 local function CapturePublicAbsences(now)
@@ -695,6 +797,9 @@ local function CapturePublicAbsences(now)
                 -- a private instance lookup alone supplies no removal proof.
                 if expiryScanMethod ~= "per-spell" then DropHistory(family, "restricted-removal") end
             elseif aura == nil then
+                if not removedAt[family] and not history.removedAt then
+                    Trace("removed", history.spellID, string.format("remaining=%.3f", history.expires - now))
+                end
                 removedAt[family] = removedAt[family] and math.min(removedAt[family], now) or now
             elseif type(aura) ~= "table" then
                 if expiryScanMethod ~= "per-spell" then DropHistory(family, "restricted-removal") end
@@ -719,6 +824,9 @@ local function CaptureRemovalTimes(updateInfo)
         if not Number(id) then CapturePublicAbsences(now); return end
         for family, history in pairs(expiryHistory) do
             if history.instanceID == id then
+                if not removedAt[family] and not history.removedAt then
+                    Trace("removed", history.spellID, string.format("remaining=%.3f", history.expires - now))
+                end
                 removedAt[family] = removedAt[family] and math.min(removedAt[family], now) or now
             end
         end
@@ -749,6 +857,7 @@ function ZP:InitializeBuffReminder()
         if event == "ADDON_LOADED" then
             for _, entry in pairs(buttons) do entry.nativeFailed = nil end
         end
+        Trace("event", nil, event)
         -- Suspend rendering immediately. Combat/encounter history can only be
         -- used again after a complete, public scan validates it; a restricted
         -- scan discards it. World changes still reset the whole lifecycle.
