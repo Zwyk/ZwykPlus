@@ -1,4 +1,4 @@
-ZwykPlus 1.26.2 - WoW Forever
+ZwykPlus 1.27.0 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,23 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+CHANGES IN 1.27.0
+Spell totals, DPS/HPS and efficiency now include expected critical output.
+Use current melee/ranged/spell crit chances with standard 2x attack / 1.5x spell
+crit multipliers. Verified Forever rules cover crit-capable periodic effects,
+including Consecration, and preserve non-critting effects.
+Paladin Holy Power is added separately: 3% per point on Holy Strike/Holy Shock,
+1% on supported other Holy spells, heals and damaging seal procs/Judgements.
+Seals/Judgements use melee crit; Hammer of Wrath uses ranged crit.
+Holy Strike now counts Sacred Arbiter once even though both native fields
+include it. Command/Judgement retain native Improved Seals values.
+Compact result rows show averages; unavailable public stats/talents are labelled
+crit incomplete. /zp spell lists crit inputs and noncritical contributions.
+Other classes' spell-specific crit talents, target modifiers, guaranteed-crit
+procs, mitigation and mana refunds are not simulated.
+Include SpellCritData.lua and SpellCrit.lua, then /reload. Settings stay saved.
+Mocked regression tests pass; verify the display in game.
 
 FIX IN 1.26.2
 Apply Improved Seals to the Righteousness model using Forever's three ranks:

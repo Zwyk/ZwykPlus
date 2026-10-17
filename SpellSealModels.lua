@@ -40,12 +40,12 @@ local function Call(func, ...)
     return value
 end
 
-local function Rank(value)
+local function Rank(value, maximum)
     value = Number(value)
-    return value and value <= 3 and value == math.floor(value) and value or nil
+    return value and value <= maximum and value == math.floor(value) and value or nil
 end
 
-local function ModernTalentRank()
+local function ModernTalentRank(wantedSpellID, maximum)
     if not C_ClassTalents or type(C_ClassTalents.GetActiveConfigID) ~= "function" then return nil, false end
     if not C_Traits or type(C_Traits.GetConfigInfo) ~= "function"
         or type(C_Traits.GetTreeNodes) ~= "function" or type(C_Traits.GetNodeInfo) ~= "function"
@@ -73,11 +73,11 @@ local function ModernTalentRank()
                 local definition = definitionID and Call(C_Traits.GetDefinitionInfo, definitionID)
                 if definitionID and not Table(definition) then return nil, true end
                 local spellID = Table(definition) and Number(definition.spellID)
-                if spellID == 20224 then
-                    -- Improved Seals is a single-entry, three-rank talent in
-                    -- this model. Reject a future different tree definition.
-                    if #node.entryIDs ~= 1 or Rank(entry.maxRanks) ~= 3 then return nil, true end
-                    return Rank(node.activeRank), true
+                if spellID == wantedSpellID then
+                    -- These models require the expected single-entry talent;
+                    -- reject a future different tree or rank definition.
+                    if #node.entryIDs ~= 1 or Rank(entry.maxRanks, maximum) ~= maximum then return nil, true end
+                    return Rank(node.activeRank, maximum), true
                 end
             end
         end
@@ -85,40 +85,47 @@ local function ModernTalentRank()
     return nil, true
 end
 
-local function LegacyTalentRank()
+local function LegacyTalentRank(spellID, maximum, englishName, frenchName)
     if type(GetNumTalentTabs) ~= "function" or type(GetNumTalents) ~= "function"
         or type(GetTalentInfo) ~= "function" then return nil end
     local tabs = Number(Call(GetNumTalentTabs))
     if not tabs or tabs < 1 or tabs > 8 then return nil end
-    local localizedName = C_Spell and Call(C_Spell.GetSpellName, 20224)
+    local localizedName = C_Spell and Call(C_Spell.GetSpellName, spellID)
     for tab = 1, tabs do
         local count = Number(Call(GetNumTalents, tab))
         if not count or count > 60 then return nil end
         for index = 1, count do
-            local ok, name, _, _, _, rank, maximum = pcall(GetTalentInfo, tab, index)
+            local ok, name, _, _, _, rank, maxRanks = pcall(GetTalentInfo, tab, index)
             if not ok or not Readable(name) then return nil end
-            if type(name) == "string" and (name == "Improved Seals" or name == "Sceaux améliorés"
+            if type(name) == "string" and (name == englishName or name == frenchName
                 or (type(localizedName) == "string" and name == localizedName)) then
-                if Rank(maximum) ~= 3 then return nil end
-                return Rank(rank)
+                if Rank(maxRanks, maximum) ~= maximum then return nil end
+                return Rank(rank, maximum)
             end
         end
     end
     return nil
 end
 
-local talentCache
+local talentCache = {}
 function ZP:InvalidateSpellSealModels()
-    talentCache = nil
+    talentCache = {}
 end
 
-local function ImprovedSealsRank()
+function ZP:GetSpellMetricTalentRank(spellID, maximum, englishName, frenchName)
+    if not Number(spellID) or spellID <= 0 or spellID ~= math.floor(spellID)
+        or not Number(maximum) or maximum < 1 or maximum > 100 or maximum ~= math.floor(maximum)
+        or not Readable(englishName) or not Readable(frenchName)
+        or (englishName ~= nil and type(englishName) ~= "string")
+        or (frenchName ~= nil and type(frenchName) ~= "string") then return nil end
+    local key = spellID .. ":" .. maximum
     local now = Number(Call(GetTime))
-    if talentCache and now and now < talentCache.expires then return talentCache.rank end
-    local rank, modern = ModernTalentRank()
+    local cached = talentCache[key]
+    if cached and now and now < cached.expires then return cached.rank end
+    local rank, modern = ModernTalentRank(spellID, maximum)
     -- Do not use legacy data to infer values hidden by a modern API.
-    if not modern then rank = LegacyTalentRank() end
-    talentCache = {rank = rank, expires = now and now + 30 or 0}
+    if not modern then rank = LegacyTalentRank(spellID, maximum, englishName, frenchName) end
+    talentCache[key] = {rank = rank, expires = now and now + 30 or 0}
     return rank
 end
 
@@ -140,7 +147,7 @@ function ZP:ResolveSealModel(component, weapon)
     local multiplier = weapon.twoHand and 1.2 or 0.85
     local damage = value / 100 * speed * multiplier
         + power * row[5] * (weapon.twoHand and 1.2 or 1)
-    local rank = ImprovedSealsRank()
+    local rank = self:GetSpellMetricTalentRank(20224, 3, "Improved Seals", "Sceaux améliorés")
     if rank then damage = damage * (1 + rank * 0.05) end
     damage = Number(damage)
     if not damage or damage <= 0 then return nil end
@@ -154,5 +161,5 @@ if CreateFrame then
         "TRAIT_CONFIG_UPDATED", "TRAIT_NODE_CHANGED", "ACTIVE_COMBAT_CONFIG_CHANGED", "SPELLS_CHANGED"}) do
         pcall(frame.RegisterEvent, frame, event)
     end
-    frame:SetScript("OnEvent", function() talentCache = nil end)
+    frame:SetScript("OnEvent", function() talentCache = {} end)
 end

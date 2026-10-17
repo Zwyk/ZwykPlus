@@ -129,16 +129,19 @@ end
 
 function ZP:CalculateSpellMetrics(metrics, info, costs, timing)
     if not Table(metrics) or not Table(info) then return end
+    timing = Table(timing) and timing or {}
+    if self.ApplySpellCritMetrics then metrics = self:ApplySpellCritMetrics(metrics, timing.spellID, timing.section) end
     local damage = Number(metrics.damage) and metrics.damage > 0 and metrics.damage or nil
     local healing = Number(metrics.healing) and metrics.healing > 0 and metrics.healing or nil
     if not damage and not healing then return end
-    timing = Table(timing) and timing or {}
     local report = {damage = damage, healing = healing, resources = {}, targets = {1}, perTarget = {},
         groundArea = metrics.groundArea, weaponEstimate = metrics.weaponEstimate,
         weaponSpeed = metrics.weaponSpeed, sealAttacks = metrics.sealAttacks,
         conditional = metrics.conditional, partialEffects = metrics.partialEffects,
         modelEstimate = metrics.modelEstimate, modelTalentsUnknown = metrics.modelTalentsUnknown, procModel = metrics.procModel}
     report.holyStrike, report.weaponContribution, report.flatContribution = metrics.holyStrike, metrics.weaponContribution, metrics.flatContribution
+    report.baseDamage, report.baseHealing = metrics.baseDamage, metrics.baseHealing
+    report.critIncluded, report.critIncomplete, report.critComponents = metrics.critIncluded, metrics.critIncomplete, metrics.critComponents
     local duration = Number(metrics.duration) and metrics.duration > 0 and metrics.duration or nil
     local channel = Readable(metrics.channel) and metrics.channel == true
         or Readable(timing.channel) and timing.channel == true
@@ -219,7 +222,13 @@ local function Format(value)
 end
 
 local function AddReport(tooltip, report, section)
-    tooltip:AddLine(section and L["spellMetricsSection_" .. section] or L.spellMetricsHeader, 0.35, 0.75, 1)
+    local heading = section and L["spellMetricsSection_" .. section] or L.spellMetricsHeader
+    if report.critIncomplete then
+        heading = section and string.format(L.spellMetricsIncompleteSection, heading) or L.spellMetricsIncompleteHeader
+    elseif report.critIncluded then
+        heading = section and string.format(L.spellMetricsAverageSection, heading) or L.spellMetricsAverageHeader
+    end
+    tooltip:AddLine(heading, 0.35, 0.75, 1)
     local one, four = report.perTarget[1], report.perTarget[2]
     if four then
         local label = four.hitTargets < 4 and string.format(L.spellMetricsTargetsCapped, 4, four.hitTargets)
@@ -475,7 +484,7 @@ function ZP:GetSpellMetricsDiagnostics(spellID)
             for index, component in ipairs(part.components) do
                 if index > 8 then break end
                 if Table(component) then
-                    for _, key in ipairs({"kind", "weaponCoefficient", "nativeFlatBonus", "flatBonus", "normalizedWeapon", "total", "duration"}) do
+                    for _, key in ipairs({"kind", "weaponCoefficient", "nativeFlatBonus", "flatCoefficient", "flatBonus", "normalizedWeapon", "total", "duration"}) do
                         Line(label .. ".component" .. index .. "." .. key, component[key])
                     end
                     if Readable(part.holyStrike) and part.holyStrike == true and Number(weapon.normalizedDamage)
@@ -491,10 +500,19 @@ function ZP:GetSpellMetricsDiagnostics(spellID)
             Line(label .. ".talentsUnknown", resolved.modelTalentsUnknown)
             Line(label .. ".improvedSealsRank", resolved.improvedSealsRank)
         end
-        local report = resolved and self:CalculateSpellMetrics(resolved, partInfo or {}, Costs(partID), {channel = channel, gcdSeconds = GCD(partID)})
+        local report = resolved and self:CalculateSpellMetrics(resolved, partInfo or {}, Costs(partID),
+            {channel = channel, gcdSeconds = GCD(partID), spellID = id, section = label})
         if not Table(report) then Line(label .. ".report", "unavailable"); return end
-        for _, key in ipairs({"damage", "healing", "weaponContribution", "flatContribution", "castSeconds", "damageDuration", "healingDuration"}) do
+        for _, key in ipairs({"damage", "healing", "baseDamage", "baseHealing", "weaponContribution", "flatContribution",
+            "critIncluded", "critIncomplete", "castSeconds", "damageDuration", "healingDuration"}) do
             Line(label .. "." .. key, report[key])
+        end
+        if Table(report.critComponents) then
+            for index, component in ipairs(report.critComponents) do
+                for _, key in ipairs({"mode", "kind", "base", "baseChance", "bonusChance", "chance", "multiplier", "factor", "reason", "talentUnknown"}) do
+                    Line(label .. ".crit" .. index .. "." .. key, component[key])
+                end
+            end
         end
         for _, target in ipairs(report.perTarget) do
             for _, key in ipairs({"damage", "healing", "dps", "hps", "effectiveDPS", "effectiveHPS"}) do
@@ -556,7 +574,8 @@ local function Handle(tooltip, data, sourceID)
                 local resolved, reason = ZP:ResolveSpellMetrics(section.metrics, ZP:GetSpellWeaponContext(NeedsWeaponDamage(section.metrics)))
                 local sectionID = section.kind == "judgement" and 20271 or id
                 local sectionInfo = section.kind == "judgement" and (SpellInfo(sectionID) or {}) or spell
-                local report = resolved and ZP:CalculateSpellMetrics(resolved, sectionInfo, Costs(sectionID), {gcdSeconds = GCD(sectionID)})
+                local report = resolved and ZP:CalculateSpellMetrics(resolved, sectionInfo, Costs(sectionID),
+                    {gcdSeconds = GCD(sectionID), spellID = id, section = section.kind})
                 reports[#reports + 1] = {kind = section.kind, report = report, unsupported = section.unsupported or reason or "unavailable"}
             end
         end
@@ -572,7 +591,8 @@ local function Handle(tooltip, data, sourceID)
         return
     end
     local resolved = ZP:ResolveSpellMetrics(metrics, ZP:GetSpellWeaponContext(NeedsWeaponDamage(metrics)))
-    local report = resolved and ZP:CalculateSpellMetrics(resolved, spell, Costs(id), {channel = channel, gcdSeconds = GCD(id)})
+    local report = resolved and ZP:CalculateSpellMetrics(resolved, spell, Costs(id),
+        {channel = channel, gcdSeconds = GCD(id), spellID = id})
     if not report then return end
     record.added = true
     AddReport(tooltip, report)
@@ -686,13 +706,14 @@ function ZP:InitializeSpellTooltips()
     end
     local events = CreateFrame("Frame")
     for _, event in ipairs({"SPELL_TEXT_UPDATE", "SPELL_DATA_LOAD_RESULT", "SPELLS_CHANGED",
-        "PLAYER_EQUIPMENT_CHANGED", "UNIT_SPELL_HASTE", "UNIT_AURA", "UNIT_ATTACK_SPEED", "UNIT_DAMAGE", "UNIT_ATTACK_POWER"}) do
+        "PLAYER_EQUIPMENT_CHANGED", "UNIT_SPELL_HASTE", "UNIT_AURA", "UNIT_ATTACK_SPEED", "UNIT_DAMAGE", "UNIT_ATTACK_POWER",
+        "COMBAT_RATING_UPDATE", "SPELL_CRIT_CHANCE_CHANGED", "PLAYER_DAMAGE_DONE_MODS", "UNIT_STATS", "UNIT_RANGEDDAMAGE"}) do
         pcall(events.RegisterEvent, events, event)
     end
     for event in pairs(talentEvents) do pcall(events.RegisterEvent, events, event) end
     events:SetScript("OnEvent", function(_, event, unit)
         if event == "UNIT_AURA" or event == "UNIT_SPELL_HASTE" or event == "UNIT_ATTACK_SPEED"
-            or event == "UNIT_DAMAGE" or event == "UNIT_ATTACK_POWER" then
+            or event == "UNIT_DAMAGE" or event == "UNIT_ATTACK_POWER" or event == "UNIT_STATS" or event == "UNIT_RANGEDDAMAGE" then
             if not Readable(unit) or unit ~= "player" then return end
         end
         if event == "SPELL_DATA_LOAD_RESULT" and ID(unit) then requested[unit] = nil end

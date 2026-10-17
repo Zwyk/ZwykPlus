@@ -337,11 +337,15 @@ end
 -- These descriptors contain only values actually stated in the tooltip; the
 -- runtime resolves the player's current public weapon values when it is shown.
 -- Narrow Forever families verified against ElliotWood/Forever 56c11f4. Holy
--- Strike takes the displayed percentage of (normalized weapon + flat amount).
+-- Strike takes the base rank percentage of (normalized weapon + flat amount).
+-- The native percentage AND flat amount include Sacred Arbiter, so use the
+-- unmodified rank percentage on the native flat part to count its bonus once.
 -- Righteousness and Command use explicitly labelled models at runtime, because
 -- their native text omits the current per-hit formula or proc frequency.
 local holyStrikeIDs = {[678] = true, [679] = true, [680] = true, [1866] = true,
     [2495] = true, [5569] = true, [10332] = true, [10333] = true}
+local holyStrikePercent = {[679] = 0.25, [678] = 0.29, [1866] = 0.32, [680] = 0.36,
+    [2495] = 0.39, [5569] = 0.43, [10332] = 0.46, [10333] = 0.50}
 local righteousIDs = {[20154] = true, [21084] = true, [20287] = true, [20288] = true,
     [20289] = true, [20290] = true, [20291] = true, [20292] = true, [20293] = true}
 local commandIDs = {[20375] = true, [20915] = true, [20918] = true, [20919] = true, [20920] = true}
@@ -431,10 +435,16 @@ local function Weapon(text, context, french)
         and not DamageTail(tail) then return nil end
     local holyStrike = IsHolyStrike(context)
     local nativeFlat = flat
-    if holyStrike then flat = flat * coefficient end
+    local flatCoefficient
+    if holyStrike then
+        local id = Readable(context) and type(context) == "table" and context.spellID
+        flatCoefficient = Number(id) and holyStrikePercent[id] or coefficient
+        flat = flat * flatCoefficient
+    end
     local area = Area(text) ~= nil
     return {components = {{kind = "damage", weaponCoefficient = coefficient, flatBonus = flat,
-        nativeFlatBonus = nativeFlat, normalizedWeapon = holyStrike and true or "unknown", aoe = area, overtime = false}},
+        nativeFlatBonus = nativeFlat, flatCoefficient = flatCoefficient,
+        normalizedWeapon = holyStrike and true or "unknown", aoe = area, overtime = false}},
         aoe = area, overtime = false, hasDirect = true, weaponEstimate = true, holyStrike = holyStrike}
 end
 

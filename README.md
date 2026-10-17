@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.26.2**. Interface version: **16001**.
+Current version: **1.27.0**. Interface version: **16001**.
 
 ## Features
 
@@ -31,6 +31,14 @@ Current version: **1.26.2**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.27.0
+
+- Spell estimates now include expected critical damage/healing in totals, DPS/HPS and output per resource. Each component uses current public melee, ranged or spell crit chance and the standard 2x attack / 1.5x spell multiplier. Verified Forever data identifies crit-capable DoTs, HoTs and periodic triggered spells, including Consecration; non-critting effects remain unchanged. Paladin seals and Judgements use their actual attack crit table, and Hammer of Wrath uses ranged crit.
+- Include **Holy Power** separately: 3% crit per point for Holy Strike/Holy Shock, 1% for the supported other Holy spells, heals and damaging seal procs/Judgements. Native melee crit already includes Conviction. Other classes' spell-specific crit bonuses and critical-damage talents, target-dependent modifiers, guaranteed-crit procs, mitigation and mana refunds are not simulated. Results remain estimates for landed effects.
+- Correct Holy Strike's flat contribution after the in-game confirmation that Sacred Arbiter increases both native fields. Use the displayed weapon percentage on normalized weapon damage and the base rank percentage on the displayed flat amount, counting that talent once. Improved Seals is already reflected in native Command/Judgement values; the separately calculated Righteousness proc retains its explicit talent bonus.
+- Show **Average output** when crit inputs are available, with the same compact result rows. If a required public crit stat or talent rank is unavailable, retain the available estimate under **crit incomplete**. `/zp spell` exposes noncritical amounts, crit category/chance/multiplier and average output. Crit/stat/talent changes refresh an open standalone spell tooltip; appended talent descriptions stay protected.
+- Include the new **SpellCritData.lua** and **SpellCrit.lua**, then `/reload`. Existing settings are preserved. Mechanics and compact data were checked against the [Forever spell snapshot](https://github.com/ElliotWood/Forever/blob/db4d14ac96f8b7ab2cc9db4fe65eb0cc4b9f847d/assets/db_inputs/spell_store_inputs.json), [crit multiplier implementation](https://github.com/ElliotWood/Forever/blob/db4d14ac96f8b7ab2cc9db4fe65eb0cc4b9f847d/sim/core/spell.go) and [Paladin talent implementation](https://github.com/ElliotWood/Forever/blob/db4d14ac96f8b7ab2cc9db4fe65eb0cc4b9f847d/sim/paladin/talents_holy.go). Mocked regression checks cover the calculations and tooltip lifecycle; actual rendering still needs an in-game check.
 
 ## Changes in 1.26.2
 
