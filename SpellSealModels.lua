@@ -3,6 +3,8 @@ local addonName, ZP = ...
 -- Forever model, not the generic speed range printed in the seal tooltip.
 -- Data/formula: ElliotWood/Forever 56c11f4e2bc69caa5d7995aaf0ffb0e68466c730,
 -- sim/paladin/seal_of_righteousness.go and sim/core/spelldata/spells_auto_gen.go.
+-- Improved Seals: ElliotWood/Forever c584d40b9595d7017a02fa855eb768c27bbffb2b,
+-- sim/paladin/talents_holy.go and spell_data_auto_gen.go: 3 ranks, 5% each.
 -- {base amount, amount per level, minimum level, maximum level, Holy SP share}
 local righteousness = {
     [21084] = {108, 18, 1, 7, 0.058},
@@ -40,7 +42,7 @@ end
 
 local function Rank(value)
     value = Number(value)
-    return value and value <= 5 and value == math.floor(value) and value or nil
+    return value and value <= 3 and value == math.floor(value) and value or nil
 end
 
 local function ModernTalentRank()
@@ -72,9 +74,9 @@ local function ModernTalentRank()
                 if definitionID and not Table(definition) then return nil, true end
                 local spellID = Table(definition) and Number(definition.spellID)
                 if spellID == 20224 then
-                    -- Improved Seals is a single-entry, five-rank talent in
+                    -- Improved Seals is a single-entry, three-rank talent in
                     -- this model. Reject a future different tree definition.
-                    if #node.entryIDs ~= 1 or Rank(entry.maxRanks) ~= 5 then return nil, true end
+                    if #node.entryIDs ~= 1 or Rank(entry.maxRanks) ~= 3 then return nil, true end
                     return Rank(node.activeRank), true
                 end
             end
@@ -97,7 +99,7 @@ local function LegacyTalentRank()
             if not ok or not Readable(name) then return nil end
             if type(name) == "string" and (name == "Improved Seals" or name == "Sceaux améliorés"
                 or (type(localizedName) == "string" and name == localizedName)) then
-                if Rank(maximum) ~= 5 then return nil end
+                if Rank(maximum) ~= 3 then return nil end
                 return Rank(rank)
             end
         end
@@ -139,7 +141,7 @@ function ZP:ResolveSealModel(component, weapon)
     local damage = value / 100 * speed * multiplier
         + power * row[5] * (weapon.twoHand and 1.2 or 1)
     local rank = ImprovedSealsRank()
-    if rank then damage = damage * (1 + rank * 0.03) end
+    if rank then damage = damage * (1 + rank * 0.05) end
     damage = Number(damage)
     if not damage or damage <= 0 then return nil end
     return {damage = damage, talentsUnknown = rank == nil, improvedSealsRank = rank,
@@ -149,7 +151,7 @@ end
 if CreateFrame then
     local frame = CreateFrame("Frame")
     for _, event in ipairs({"PLAYER_ENTERING_WORLD", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED",
-        "TRAIT_CONFIG_UPDATED", "TRAIT_NODE_CHANGED", "SPELLS_CHANGED"}) do
+        "TRAIT_CONFIG_UPDATED", "TRAIT_NODE_CHANGED", "ACTIVE_COMBAT_CONFIG_CHANGED", "SPELLS_CHANGED"}) do
         pcall(frame.RegisterEvent, frame, event)
     end
     frame:SetScript("OnEvent", function() talentCache = nil end)

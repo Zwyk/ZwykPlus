@@ -75,6 +75,7 @@ function ZP:ResolveSpellMetrics(metrics, weapon)
             if not known or not Table(model) or not Number(model.damage) then return nil, "weapon" end
             total = model.damage
             result.modelEstimate, result.modelTalentsUnknown = true, model.talentsUnknown
+            result.improvedSealsRank = model.improvedSealsRank
         end
         if Number(source.weaponCoefficient) then
             local normalized = Readable(source.normalizedWeapon) and source.normalizedWeapon == true
@@ -486,6 +487,10 @@ function ZP:GetSpellMetricsDiagnostics(spellID)
         end
         local resolved, reason = self:ResolveSpellMetrics(part, weapon)
         Line(label .. ".resolveReason", reason or "ok")
+        if Table(resolved) and Readable(resolved.modelTalentsUnknown) and resolved.modelTalentsUnknown ~= nil then
+            Line(label .. ".talentsUnknown", resolved.modelTalentsUnknown)
+            Line(label .. ".improvedSealsRank", resolved.improvedSealsRank)
+        end
         local report = resolved and self:CalculateSpellMetrics(resolved, partInfo or {}, Costs(partID), {channel = channel, gcdSeconds = GCD(partID)})
         if not Table(report) then Line(label .. ".report", "unavailable"); return end
         for _, key in ipairs({"damage", "healing", "weaponContribution", "flatContribution", "castSeconds", "damageDuration", "healingDuration"}) do
@@ -668,6 +673,9 @@ local function QueueRefresh()
     else ZP:RefreshSpellTooltips() end
 end
 
+local talentEvents = {SPELLS_CHANGED = true, PLAYER_TALENT_UPDATE = true, CHARACTER_POINTS_CHANGED = true,
+    TRAIT_CONFIG_UPDATED = true, TRAIT_NODE_CHANGED = true, ACTIVE_COMBAT_CONFIG_CHANGED = true}
+
 function ZP:InitializeSpellTooltips()
     if initialized then return end
     initialized = true
@@ -681,12 +689,18 @@ function ZP:InitializeSpellTooltips()
         "PLAYER_EQUIPMENT_CHANGED", "UNIT_SPELL_HASTE", "UNIT_AURA", "UNIT_ATTACK_SPEED", "UNIT_DAMAGE", "UNIT_ATTACK_POWER"}) do
         pcall(events.RegisterEvent, events, event)
     end
+    for event in pairs(talentEvents) do pcall(events.RegisterEvent, events, event) end
     events:SetScript("OnEvent", function(_, event, unit)
         if event == "UNIT_AURA" or event == "UNIT_SPELL_HASTE" or event == "UNIT_ATTACK_SPEED"
             or event == "UNIT_DAMAGE" or event == "UNIT_ATTACK_POWER" then
             if not Readable(unit) or unit ~= "player" then return end
         end
         if event == "SPELL_DATA_LOAD_RESULT" and ID(unit) then requested[unit] = nil end
+        if talentEvents[event] then
+            parsedCache, cacheCount = {}, 0
+            -- Do this before refreshing: frame event ordering is unspecified.
+            if ZP.InvalidateSpellSealModels then ZP:InvalidateSpellSealModels() end
+        end
         QueueRefresh()
     end)
 end

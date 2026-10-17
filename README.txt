@@ -1,4 +1,4 @@
-ZwykPlus 1.26.1 - WoW Forever
+ZwykPlus 1.26.2 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,18 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+FIX IN 1.26.2
+Apply Improved Seals to the Righteousness model using Forever's three ranks:
+5/10/15%. The old five-rank check rejected the current talent definition.
+Spell diagnostics now include the resolved model talent rank/readability.
+Refresh spell calculations and their caches when talents/configuration change.
+Native descriptions, costs, cast times and player stats keep the bonuses
+already exposed by the client; Command's talent-adjusted percent is used once.
+Noncritical estimates still exclude conditional procs and unexposed effects.
+Sacred Arbiter's native Holy Strike text needs an in-game comparison before
+adding another multiplier. Talent tooltip headers stay protected.
+Update and /reload. Existing settings stay saved.
 
 FIX IN 1.26.1
 Talent tooltip titles and ranks no longer disappear after hovering.

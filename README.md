@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.26.1**. Interface version: **16001**.
+Current version: **1.26.2**. Interface version: **16001**.
 
 ## Features
 
@@ -31,6 +31,13 @@ Current version: **1.26.1**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.26.2
+
+- Fix the Righteousness model's **Improved Seals** bonus: Forever has three ranks at **5/10/15%**, rather than the five-rank definition the addon expected. Both modern and legacy talent readers now recognize the current definition. The spell diagnostics include the model's resolved talent rank and whether it was readable.
+- Recalculate open spell tooltips after talent changes or a talent configuration switch, invalidating parsed/model caches before the refresh. Retain the talent-tooltip header protection from 1.26.1 and stop automatic refreshes while spell metrics are disabled.
+- Continue using current native descriptions, resource costs, cast times and player weapon/spell stats for bonuses exposed there. In particular, Command's native weapon percentage already includes Improved Seals and is not multiplied again. These remain noncritical estimates; conditional procs and talent effects not exposed in those values are not a complete combat simulation. Sacred Arbiter's representation in native Holy Strike text still needs an in-game comparison before any additional multiplier is justified.
+- Talent definitions verified against the [Forever talent implementation](https://github.com/ElliotWood/Forever/blob/c584d40b9595d7017a02fa855eb768c27bbffb2b/sim/paladin/talents_holy.go) and [Command model](https://github.com/ElliotWood/Forever/blob/c584d40b9595d7017a02fa855eb768c27bbffb2b/sim/paladin/seal_of_command.go). Update and `/reload`; existing settings remain saved.
 
 ## Changes in 1.26.1
 
