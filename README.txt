@@ -1,4 +1,4 @@
-ZwykPlus 1.26.0 - WoW Forever
+ZwykPlus 1.26.1 - WoW Forever
 
 INSTALL
 1. Close WoW.
@@ -9,6 +9,13 @@ INSTALL
 4. Confirm Interface/AddOns/ZwykPlus/ZwykPlus.toc exists.
 5. Start WoW, enable ZwykPlus and use /zp or /zwykplus to open the setup.
    You can also open it through Settings > AddOns > ZwykPlus.
+
+FIX IN 1.26.1
+Talent tooltip titles and ranks no longer disappear after hovering.
+Spell metrics no longer rebuild appended talent descriptions as full tooltips.
+Automatic spell refreshes stop when the option is disabled; disabling only
+removes reports already added by ZwykPlus. Normal native spell refreshes keep
+their data and callbacks. Update and /reload. Existing settings stay saved.
 
 CHANGES IN 1.26.0
 Missing-seal glow: only the last successfully used non-Crusader seal glows.

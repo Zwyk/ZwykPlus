@@ -2,7 +2,7 @@
 
 A small quality-of-life addon for **WoW Forever**, with a compact English/French setup panel and account-wide saved settings.
 
-Current version: **1.26.0**. Interface version: **16001**.
+Current version: **1.26.1**. Interface version: **16001**.
 
 ## Features
 
@@ -31,6 +31,11 @@ Current version: **1.26.0**. Interface version: **16001**.
 - Show separate class and race icons beside linked player names when WoW provides the information.
 
 The setup has seven categories: **Interface, Automation, Auras, Frames, Casting, Travel and Chat**. The opaque 600 × 390 window remembers the selected category. Feature toggles and appearance settings are saved. Existing settings are preserved when updating; 3D portraits, nameplate targeting eyes and healer mana summaries start disabled and can be enabled under Frames. Item binding icons also start disabled, under Interface; flight progress starts disabled, under Travel. Quest objective targeting starts disabled under Automation, and buff and Crusader reminders start disabled under Auras.
+
+## Changes in 1.26.1
+
+- Fix talent tooltip titles and ranks disappearing after hovering. Spell metrics no longer rebuild appended talent descriptions as complete tooltips. Automatic spell refreshes stop when the option is disabled; disabling only removes reports already added by ZwykPlus. Standalone native spell refreshes preserve their native data and callbacks.
+- Update and `/reload`. Existing settings remain saved.
 
 ## Changes in 1.26.0
 

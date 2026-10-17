@@ -376,8 +376,11 @@ local function Parse(description, id, name)
     return metrics
 end
 
+local sourceGetters = {GetSpellByID = true, GetSpellBookItem = true, GetAction = true, GetHyperlink = true}
 local function StoreSource(record, getter, args)
+    record.setter, record.args = nil, nil
     if not String(getter) or not Table(args) then return end
+    if not sourceGetters[getter] then return end
     local setter = "Set" .. getter:sub(4)
     if getter:sub(1, 3) ~= "Get" or not record.tooltip[setter] then return end
     local count = args.n
@@ -510,10 +513,19 @@ local function Handle(tooltip, data, sourceID)
     if not Public(tooltip) then return end
     HookTooltip(tooltip)
     local record = records[tooltip]
+    if not (ZP.db and ZP.db.spellTooltipMetrics) then return end
     local getter = tooltip.GetProcessingTooltipInfo or tooltip.GetPrimaryTooltipInfo
     local info = Call(getter, tooltip)
-    if Table(info) then StoreSource(record, info.getterName, info.getterArgs) end
-    if not (ZP.db and ZP.db.spellTooltipMetrics) or record.added then return end
+    if Table(info) then
+        -- Talents build their title/rank by hand, then append trait spell data.
+        -- Replaying that section as a complete setter would erase the header.
+        if not Readable(info.append) or info.append then
+            record.setter, record.args = nil, nil
+            return
+        end
+        StoreSource(record, info.getterName, info.getterArgs)
+    end
+    if record.added then return end
     if data ~= nil and not Table(data) then return end
     if Table(data) and (not Readable(data.type) or data.type ~= Enum.TooltipDataType.Spell) then return end
     local id = sourceID
@@ -598,7 +610,7 @@ HookTooltip = function(tooltip)
     for _, method in ipairs({"SetSpellByID", "SetSpellBookItem", "SetAction", "SetHyperlink"}) do
         if type(tooltip[method]) == "function" then
             hooksecurefunc(tooltip, method, function(self, ...)
-                if not Public(self) then return end
+                if not (ZP.db and ZP.db.spellTooltipMetrics) or not Public(self) then return end
                 local args = {n = select("#", ...), ...}
                 StoreSource(record, "Get" .. method:sub(4), args)
                 if record.added then return end
@@ -621,16 +633,27 @@ function ZP:RefreshSpellTooltips()
     if rebuilding then return end
     rebuilding = true
     for tooltip, record in pairs(records) do
-        if Public(tooltip) and record.setter and record.args then
+        -- An explicit option change may remove our existing report. With the
+        -- option off, merely observing a tooltip never authorizes a rebuild.
+        if ((ZP.db and ZP.db.spellTooltipMetrics) or record.added)
+            and Public(tooltip) and record.setter and record.args then
             local shown = Call(tooltip.IsShown, tooltip)
-            if shown == true then pcall(tooltip[record.setter], tooltip, unpackArgs(record.args, 1, record.args.n)) end
+            if shown == true then
+                local setter, args = record.setter, record.args
+                if type(tooltip.RebuildFromTooltipInfo) == "function" then
+                    pcall(tooltip.RebuildFromTooltipInfo, tooltip)
+                else pcall(tooltip[record.setter], tooltip, unpackArgs(record.args, 1, record.args.n)) end
+                -- Keep the known full source after removing our report, so an
+                -- immediate re-enable can restore it without another hover.
+                if not (ZP.db and ZP.db.spellTooltipMetrics) then record.setter, record.args = setter, args end
+            end
         end
     end
     rebuilding = false
 end
 
 local function QueueRefresh()
-    if refreshQueued then return end
+    if not (ZP.db and ZP.db.spellTooltipMetrics) or refreshQueued then return end
     local showing = false
     for tooltip, record in pairs(records) do
         if record.setter and Public(tooltip) and Call(tooltip.IsShown, tooltip) == true then showing = true; break end
@@ -638,7 +661,10 @@ local function QueueRefresh()
     if not showing then return end
     if C_Timer and type(C_Timer.After) == "function" then
         refreshQueued = true
-        C_Timer.After(0.1, function() refreshQueued = false; ZP:RefreshSpellTooltips() end)
+        C_Timer.After(0.1, function()
+            refreshQueued = false
+            if ZP.db and ZP.db.spellTooltipMetrics then ZP:RefreshSpellTooltips() end
+        end)
     else ZP:RefreshSpellTooltips() end
 end
 
